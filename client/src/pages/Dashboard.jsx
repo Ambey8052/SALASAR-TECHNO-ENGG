@@ -9,23 +9,24 @@ import { useAuth } from '../context/AuthContext';
 import { ManpowerTrendChart, ManpowerCategoryChart } from '../components/dashboard/ManpowerChart';
 import { ProductionTrendChart, ProductionStageChart, ProductionClientChart } from '../components/dashboard/ProductionChart';
 import { DispatchTrendChart, DispatchClientChart } from '../components/dashboard/DispatchChart';
-import { PendingByClientChart } from '../components/dashboard/PendingChart';
 import { TargetPanel } from '../components/dashboard/TargetPanel';
 import { InsightsPanel } from '../components/dashboard/InsightsPanel';
 import { SyncStatusBadge } from '../components/dashboard/SyncStatusBadge';
 import { useSyncSocket } from '../hooks/useSyncSocket';
 
+const UNIT_LABEL = { HSD: 'HSD', BU: 'Bhilai' };
+
 export function Dashboard() {
   const [preset, setPreset] = useState('Last 30 days');
   const [range, setRange] = useState(PRESETS[2].getRange());
-  const [businessUnit, setBusinessUnit] = useState('');
+  const [businessUnit, setBusinessUnit] = useState('HSD');
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
   const params = {
     from: format(range.from, 'yyyy-MM-dd'),
     to: format(range.to, 'yyyy-MM-dd'),
-    ...(businessUnit ? { businessUnit } : {}),
+    businessUnit,
   };
 
   const summaryQuery = useQuery({
@@ -48,17 +49,15 @@ export function Dashboard() {
   useSyncSocket(handleSynced);
 
   const summary = summaryQuery.data;
-  const totalPending = summary
-    ? Math.round(summary.pending.reduce((sum, p) => sum + p.pending, 0) * 1000) / 1000
-    : null;
-  const knownClients = summary?.pending.map((p) => p.client) ?? [];
+  const productionAvailable = summary?.production?.available ?? false;
+  const knownClients = summary?.production?.byClient.map((c) => c.client) ?? [];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-            HSD Overview
+            {UNIT_LABEL[businessUnit]} Overview
           </h1>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             {formatRangeLabel(range)}
@@ -70,6 +69,7 @@ export function Dashboard() {
       <div className="mb-6">
         <FilterBar
           activePreset={preset}
+          range={range}
           onPresetChange={(label, r) => {
             setPreset(label);
             setRange(r);
@@ -86,7 +86,7 @@ export function Dashboard() {
         initial="hidden"
         animate="visible"
         variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-        className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
       >
         <StatCard
           label="Manpower today"
@@ -94,52 +94,59 @@ export function Dashboard() {
           unit="on site"
           accent="var(--series-1)"
         />
-        <StatCard
-          label="Completed today"
-          value={summary?.production.completedToday ?? '—'}
-          unit="MT"
-          accent="var(--series-3)"
-          hint="Final-coat completions"
-        />
-        <StatCard
-          label="Dispatched today"
-          value={summary?.dispatch.today ?? '—'}
-          unit="MT"
-          accent="var(--series-2)"
-        />
-        <StatCard
-          label="Pending dispatch"
-          value={totalPending ?? '—'}
-          unit="MT"
-          accent="var(--status-warning)"
-          hint="Finished but not yet shipped, all clients"
-        />
+        {productionAvailable && (
+          <StatCard
+            label="Completed today"
+            value={summary?.production.completedToday ?? '—'}
+            unit="MT"
+            accent="var(--series-3)"
+            hint="Final-coat completions"
+          />
+        )}
+        {summary?.dispatch?.available && (
+          <StatCard
+            label="Dispatched today"
+            value={summary?.dispatch.today ?? '—'}
+            unit="MT"
+            accent="var(--series-2)"
+          />
+        )}
       </motion.div>
 
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-        {formatRangeLabel(range)} — follows the filter above
-      </div>
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-        className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2"
-      >
-        <StatCard
-          label={`Completed (${preset})`}
-          value={summary?.production.completedInRange ?? '—'}
-          unit="MT"
-          accent="var(--series-3)"
-          hint="Final-coat completions in the selected range"
-        />
-        <StatCard
-          label={`Dispatched (${preset})`}
-          value={summary?.dispatch.inRange ?? '—'}
-          unit="MT"
-          accent="var(--series-2)"
-          hint="Dispatched in the selected range"
-        />
-      </motion.div>
+      {summary && !productionAvailable && (
+        <div className="mb-6 rounded-xl border px-4 py-3 text-sm" style={{ color: 'var(--text-muted)', background: 'var(--surface-1)' }}>
+          Production and dispatch tracking for Bhilai isn't connected to a data source yet — only manpower is available for this unit right now.
+        </div>
+      )}
+
+      {productionAvailable && (
+        <>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+            {formatRangeLabel(range)} — follows the filter above
+          </div>
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
+            className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2"
+          >
+            <StatCard
+              label={`Completed (${preset})`}
+              value={summary?.production.completedInRange ?? '—'}
+              unit="MT"
+              accent="var(--series-3)"
+              hint="Final-coat completions in the selected range"
+            />
+            <StatCard
+              label={`Dispatched (${preset})`}
+              value={summary?.dispatch.inRange ?? '—'}
+              unit="MT"
+              accent="var(--series-2)"
+              hint="Dispatched in the selected range"
+            />
+          </motion.div>
+        </>
+      )}
 
       <div className="mb-4">
         <InsightsPanel params={params} />
@@ -148,15 +155,20 @@ export function Dashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {summary && (
           <>
-            <ProductionTrendChart trend={summary.production.trend} />
-            <DispatchTrendChart trend={summary.dispatch.trend} />
-            <ProductionStageChart byStage={summary.production.byStage} />
-            <ProductionClientChart byClient={summary.production.byClient} />
-            <DispatchClientChart byClient={summary.dispatch.byClient} />
-            <PendingByClientChart pending={summary.pending} />
+            {productionAvailable && (
+              <>
+                <ProductionTrendChart trend={summary.production.trend} />
+                <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />
+                <ProductionStageChart byStage={summary.production.byStage} />
+                <ProductionClientChart byClient={summary.production.byClient} />
+                <DispatchClientChart byClient={summary.dispatch.byClient} />
+              </>
+            )}
             <ManpowerTrendChart trend={summary.manpower.trend} />
             <ManpowerCategoryChart byCategory={summary.manpower.byCategory} />
-            <TargetPanel targets={summary.targets} knownClients={knownClients} isAdmin={user?.role === 'admin'} />
+            {productionAvailable && (
+              <TargetPanel targets={summary.targets} knownClients={knownClients} isAdmin={user?.role === 'admin'} />
+            )}
           </>
         )}
       </div>

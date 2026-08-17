@@ -72,3 +72,20 @@ body {
   background: var(--baseline);
   border-radius: 8px;
 }
+
+.salasar-daypicker .rdp-root {
+  --rdp-accent-color: var(--series-1);
+  --rdp-accent-background-color: color-mix(in srgb, var(--series-1) 14%, transparent);
+  --rdp-today-color: var(--series-2);
+  --rdp-day-height: 38px;
+  --rdp-day-width: 38px;
+  --rdp-day_button-height: 36px;
+  --rdp-day_button-width: 36px;
+  color: var(--text-primary);
+}
+.salasar-daypicker .rdp-weekday {
+  color: var(--text-muted);
+}
+.salasar-daypicker .rdp-outside {
+  opacity: 0.4;
+}

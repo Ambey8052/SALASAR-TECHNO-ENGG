@@ -1,4 +1,5 @@
 import { format, subDays, startOfMonth } from 'date-fns';
+import { DateRangePicker } from './DateRangePicker';
 
 const PRESETS = [
   { label: 'Today', getRange: () => ({ from: new Date(), to: new Date() }) },
@@ -7,7 +8,12 @@ const PRESETS = [
   { label: 'Month to date', getRange: () => ({ from: startOfMonth(new Date()), to: new Date() }) },
 ];
 
-export function FilterBar({ activePreset, onPresetChange, businessUnit, onBusinessUnitChange }) {
+const UNITS = [
+  { value: 'HSD', label: 'HSD' },
+  { value: 'BU', label: 'Bhilai' },
+];
+
+export function FilterBar({ activePreset, onPresetChange, range, businessUnit, onBusinessUnitChange }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border p-1.5" style={{ background: 'var(--surface-1)' }}>
       <div className="flex flex-wrap gap-1">
@@ -24,22 +30,27 @@ export function FilterBar({ activePreset, onPresetChange, businessUnit, onBusine
             {preset.label}
           </button>
         ))}
+        <DateRangePicker
+          isActive={activePreset === 'Custom'}
+          value={range}
+          onApply={(r) => onPresetChange('Custom', r)}
+        />
       </div>
 
-      <div className="ml-auto flex items-center gap-2 px-1.5">
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Business unit
-        </span>
-        <select
-          value={businessUnit}
-          onChange={(e) => onBusinessUnitChange(e.target.value)}
-          className="rounded-lg border px-2 py-1.5 text-sm"
-          style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}
-        >
-          <option value="">All</option>
-          <option value="HSD">HSD</option>
-          <option value="BU">B.U</option>
-        </select>
+      <div className="ml-auto flex items-center gap-1 rounded-lg p-0.5" style={{ background: 'var(--surface-2)' }}>
+        {UNITS.map((unit) => (
+          <button
+            key={unit.value}
+            onClick={() => onBusinessUnitChange(unit.value)}
+            className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+            style={{
+              background: businessUnit === unit.value ? 'var(--series-2)' : 'transparent',
+              color: businessUnit === unit.value ? '#ffffff' : 'var(--text-secondary)',
+            }}
+          >
+            {unit.label}
+          </button>
+        ))}
       </div>
     </div>
   );

@@ -115,16 +115,42 @@ async function sumDispatchQty(start, end, client) {
   return row?.total ?? 0;
 }
 
+// Rows with no recognized client (e.g. sheet projects that couldn't be mapped to a
+// known client) are grouped under "Other" here rather than dropped, so the client-wise
+// daily breakdown still sums to the same total as the plain day-by-day trend.
+async function getDispatchTrendByClient(from, to, client) {
+  const match = { date: { $gte: from, $lte: to }, ...(client ? { client } : {}) };
+  const rows = await DispatchRecord.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: { date: '$date', client: { $ifNull: ['$client', 'Other'] } },
+        total: { $sum: '$qty' },
+      },
+    },
+    { $sort: { '_id.date': 1 } },
+  ]);
+
+  const byDate = new Map();
+  for (const row of rows) {
+    const key = row._id.date.toISOString();
+    if (!byDate.has(key)) byDate.set(key, { date: row._id.date });
+    byDate.get(key)[row._id.client] = row.total;
+  }
+  return [...byDate.values()].sort((a, b) => a.date - b.date);
+}
+
 async function getDispatchSummary(from, to, client) {
   const match = { date: { $gte: from, $lte: to }, ...(client ? { client } : {}) };
   const { start: todayStart, end: todayEnd } = startEndOfToday();
 
-  const [trend, byClient, today, inRange] = await Promise.all([
+  const [trend, trendByClient, byClient, today, inRange] = await Promise.all([
     DispatchRecord.aggregate([
       { $match: match },
       { $group: { _id: '$date', total: { $sum: '$qty' } } },
       { $sort: { _id: 1 } },
     ]),
+    getDispatchTrendByClient(from, to, client),
     DispatchRecord.aggregate([
       { $match: { ...match, client: { $ne: null } } },
       { $group: { _id: '$client', total: { $sum: '$qty' } } },
@@ -138,24 +164,9 @@ async function getDispatchSummary(from, to, client) {
     today,
     inRange,
     trend: trend.map((t) => ({ date: t._id, total: t.total })),
+    trendByClient,
     byClient: byClient.map((c) => ({ client: c._id, total: c.total })),
   };
-}
-
-async function getPendingByClient() {
-  const [completedMap, dispatchedTotals] = await Promise.all([
-    getLatestFinalCoatByClient(),
-    DispatchRecord.aggregate([
-      { $match: { client: { $ne: null } } },
-      { $group: { _id: '$client', total: { $sum: '$qty' } } },
-    ]),
-  ]);
-  const dispatchedMap = new Map(dispatchedTotals.map((d) => [d._id, d.total]));
-
-  return [...completedMap.entries()].map(([clientName, completed]) => {
-    const dispatched = dispatchedMap.get(clientName) || 0;
-    return { client: clientName, completed, dispatched, pending: Math.max(completed - dispatched, 0) };
-  });
 }
 
 async function getTargetProgress() {
@@ -166,21 +177,42 @@ async function getTargetProgress() {
   });
 }
 
+const UNAVAILABLE_PRODUCTION = {
+  available: false,
+  completedToday: null,
+  completedInRange: null,
+  byStage: [],
+  byClient: [],
+  trend: [],
+};
+
+const UNAVAILABLE_DISPATCH = {
+  available: false,
+  today: null,
+  inRange: null,
+  trend: [],
+  trendByClient: [],
+  byClient: [],
+};
+
+// Production (Adani/L&T MHI/RIL progress tabs) and dispatch (Daily Dispatch tab) are HSD-only
+// data sources today. Bhilai has no production-progress source yet and gets an explicit
+// "unavailable" shape rather than empty/zeroed data, so the UI can say so plainly.
 export async function buildHsdSummaryData(from, to, businessUnit, client) {
-  const [manpower, production, dispatch, pending, targets] = await Promise.all([
+  const isBhilai = businessUnit === 'BU';
+
+  const [manpower, production, dispatch, targets] = await Promise.all([
     getManpowerSummary(from, to, businessUnit),
-    getProductionSummary(from, to, client),
-    getDispatchSummary(from, to, client),
-    getPendingByClient(),
-    getTargetProgress(),
+    isBhilai ? UNAVAILABLE_PRODUCTION : getProductionSummary(from, to, client),
+    isBhilai ? UNAVAILABLE_DISPATCH : getDispatchSummary(from, to, client),
+    isBhilai ? [] : getTargetProgress(),
   ]);
 
   return {
     range: { from, to },
     manpower,
-    production: roundDeep(production),
-    dispatch: roundDeep(dispatch),
-    pending: roundDeep(pending),
+    production: isBhilai ? production : { available: true, ...roundDeep(production) },
+    dispatch: isBhilai ? dispatch : { available: true, ...roundDeep(dispatch) },
     targets: roundDeep(targets),
   };
 }

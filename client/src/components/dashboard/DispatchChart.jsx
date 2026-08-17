@@ -1,7 +1,8 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { format } from 'date-fns';
 
 const CLIENT_COLORS = ['var(--series-2)', 'var(--series-3)', 'var(--series-4)', 'var(--series-5)', 'var(--series-7)'];
+const OTHER_COLOR = 'var(--text-muted)';
 
 function ChartCard({ title, subtitle, children }) {
   return (
@@ -21,30 +22,43 @@ function ChartCard({ title, subtitle, children }) {
   );
 }
 
-function DateTooltip({ active, payload, label }) {
+function ClientDateTooltip({ active, payload, label, clientKeys }) {
   if (!active || !payload?.length) return null;
+  const total = clientKeys.reduce((sum, key) => sum + (payload[0]?.payload[key] || 0), 0);
   return (
     <div
       className="rounded-lg border px-3 py-2 text-xs shadow-md"
       style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}
     >
-      <div style={{ color: 'var(--text-muted)' }}>{format(new Date(label), 'd MMM yyyy')}</div>
-      <div className="mt-1 font-semibold">{payload[0].value} MT dispatched</div>
+      <div className="mb-1" style={{ color: 'var(--text-muted)' }}>{format(new Date(label), 'd MMM yyyy')}</div>
+      {clientKeys.map((key) => {
+        const value = payload[0]?.payload[key];
+        if (!value) return null;
+        return (
+          <div key={key}>
+            {key}: <strong>{value}</strong> MT
+          </div>
+        );
+      })}
+      <div className="mt-1 border-t pt-1 font-semibold">Total: {Math.round(total * 1000) / 1000} MT</div>
     </div>
   );
 }
 
-export function DispatchTrendChart({ trend }) {
-  const data = trend.map((t) => ({ date: t.date, total: t.total }));
+export function DispatchTrendChart({ trendByClient, byClient }) {
+  const data = trendByClient.map((t) => ({ ...t, date: t.date }));
+  const hasOther = trendByClient.some((t) => 'Other' in t);
+  const clientKeys = [...byClient.map((c) => c.client), ...(hasOther ? ['Other'] : [])];
+  const colorFor = (i, key) => (key === 'Other' ? OTHER_COLOR : CLIENT_COLORS[i % CLIENT_COLORS.length]);
 
   return (
-    <ChartCard title="Dispatch, day by day" subtitle="Quantity dispatched per day in the selected range">
+    <ChartCard title="Dispatch, day by day" subtitle="Quantity dispatched per day in the selected range, by client">
       {data.length === 0 ? (
         <div className="flex h-[220px] items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
           No dispatches recorded yet in this range
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer width="100%" height={240}>
           <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
             <CartesianGrid stroke="var(--gridline)" vertical={false} />
             <XAxis
@@ -55,8 +69,19 @@ export function DispatchTrendChart({ trend }) {
               tickLine={false}
             />
             <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-            <Tooltip cursor={{ fill: 'var(--surface-2)' }} content={<DateTooltip />} />
-            <Bar dataKey="total" fill="var(--series-2)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            <Tooltip cursor={{ fill: 'var(--surface-2)' }} content={<ClientDateTooltip clientKeys={clientKeys} />} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            {clientKeys.map((key, i) => (
+              <Bar
+                key={key}
+                dataKey={key}
+                name={key}
+                stackId="dispatch"
+                fill={colorFor(i, key)}
+                maxBarSize={28}
+                radius={i === clientKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              />
+            ))}
           </BarChart>
         </ResponsiveContainer>
       )}
