@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 230">
+  <g opacity="0.05">
+    <path fill="#0b0b0b" d="M118 52 L206 52 L206 92 L84 92 Z" />
+    <path fill="#dc1f2b" d="M78 104 L206 104 L206 178 L64 178 L64 118 Z" />
+    <rect x="64" y="136" width="98" height="10" fill="#f9f9f7" />
+
+    <line x1="240" y1="40" x2="240" y2="190" stroke="#0b0b0b" stroke-width="4" />
+
+    <text x="270" y="128" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-style="italic" font-size="84" letter-spacing="2" fill="#0b0b0b">SALASAR</text>
+    <text x="272" y="168" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="28" fill="#52514e">Building a stronger future</text>
+  </g>
+</svg>

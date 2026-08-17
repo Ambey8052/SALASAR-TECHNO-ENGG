@@ -54,9 +54,14 @@
 }
 
 body {
-  background: var(--surface-page);
+  background-color: var(--surface-page);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background-image: url('/watermark.svg');
+  background-repeat: no-repeat;
+  background-position: bottom -50px right -70px;
+  background-size: min(640px, 60vw) auto;
+  background-attachment: fixed;
 }
 
 ::-webkit-scrollbar {

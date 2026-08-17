@@ -13,7 +13,7 @@ const queryClient = new QueryClient({
 
 function AppShell({ children }) {
   return (
-    <div className="min-h-screen" style={{ background: 'var(--surface-page)' }}>
+    <div className="min-h-screen">
       <Navbar />
       {children}
     </div>

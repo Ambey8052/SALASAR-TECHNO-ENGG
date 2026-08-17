@@ -11,7 +11,13 @@ export function Login() {
   const error = params.get('error');
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4" style={{ background: 'var(--surface-page)' }}>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: 'radial-gradient(circle at 50% 38%, rgba(220, 31, 43, 0.08), transparent 55%)',
+        }}
+      />
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
