@@ -20,12 +20,7 @@ export function Login() {
         style={{ background: 'var(--surface-1)' }}
       >
         <div className="mb-6 flex flex-col items-center text-center">
-          <div
-            className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl text-lg font-bold text-white"
-            style={{ background: 'var(--series-1)' }}
-          >
-            S
-          </div>
+          <img src="/favicon.svg" alt="Salasar" className="mb-4 h-14 w-14" />
           <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             Salasar HSD Dashboard
           </h1>

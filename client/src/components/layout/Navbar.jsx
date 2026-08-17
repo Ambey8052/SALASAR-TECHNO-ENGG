@@ -17,12 +17,7 @@ export function Navbar() {
     >
       <div className="flex items-center gap-8">
         <div className="flex items-center gap-2">
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white"
-            style={{ background: 'var(--series-1)' }}
-          >
-            S
-          </div>
+          <img src="/favicon.svg" alt="Salasar" className="h-9 w-9" />
           <div className="leading-tight">
             <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Salasar HSD
