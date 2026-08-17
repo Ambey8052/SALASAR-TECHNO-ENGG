@@ -19,6 +19,11 @@ export async function fetchHsdSummary(params) {
   return data;
 }
 
+export async function fetchHsdInsights(params) {
+  const { data } = await api.get('/dashboard/hsd/insights', { params, timeout: 75_000 });
+  return data;
+}
+
 export async function fetchManpowerRecords(params) {
   const { data } = await api.get('/dashboard/manpower', { params });
   return data;

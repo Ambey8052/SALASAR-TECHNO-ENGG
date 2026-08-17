@@ -32,4 +32,6 @@ export const env = {
 
   hsdSpreadsheetId: required('HSD_SPREADSHEET_ID', '1-O9T8zA4yAFYzq9LW2fgn5hIdy7MsAPq'),
   syncIntervalMinutes: Number(process.env.SYNC_INTERVAL_MINUTES || 10),
+
+  geminiApiKey: process.env.GEMINI_API_KEY || null,
 };

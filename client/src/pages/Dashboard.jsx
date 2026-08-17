@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { fetchHsdSummary, fetchSyncStatus } from '../lib/api';
@@ -11,6 +11,7 @@ import { ProductionTrendChart, ProductionStageChart, ProductionClientChart } fro
 import { DispatchTrendChart, DispatchClientChart } from '../components/dashboard/DispatchChart';
 import { PendingByClientChart } from '../components/dashboard/PendingChart';
 import { TargetPanel } from '../components/dashboard/TargetPanel';
+import { InsightsPanel } from '../components/dashboard/InsightsPanel';
 import { SyncStatusBadge } from '../components/dashboard/SyncStatusBadge';
 import { useSyncSocket } from '../hooks/useSyncSocket';
 
@@ -30,6 +31,7 @@ export function Dashboard() {
   const summaryQuery = useQuery({
     queryKey: ['hsd-summary', params],
     queryFn: () => fetchHsdSummary(params),
+    placeholderData: keepPreviousData,
   });
 
   const syncStatusQuery = useQuery({
@@ -77,11 +79,14 @@ export function Dashboard() {
         />
       </div>
 
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+        Today — fixed, ignores the filter above
+      </div>
       <motion.div
         initial="hidden"
         animate="visible"
         variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-        className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         <StatCard
           label="Manpower today"
@@ -97,42 +102,8 @@ export function Dashboard() {
           hint="Final-coat completions"
         />
         <StatCard
-          label="Completed this month"
-          value={summary?.production.completedMonth ?? '—'}
-          unit="MT"
-          accent="var(--series-3)"
-          hint="Final-coat completions"
-        />
-        <StatCard
-          label="Completed last month"
-          value={summary?.production.completedLastMonth ?? '—'}
-          unit="MT"
-          accent="var(--series-3)"
-          hint="Final-coat completions"
-        />
-      </motion.div>
-
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-        className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
-        <StatCard
           label="Dispatched today"
           value={summary?.dispatch.today ?? '—'}
-          unit="MT"
-          accent="var(--series-2)"
-        />
-        <StatCard
-          label="Dispatched this month"
-          value={summary?.dispatch.month ?? '—'}
-          unit="MT"
-          accent="var(--series-2)"
-        />
-        <StatCard
-          label="Dispatched last month"
-          value={summary?.dispatch.lastMonth ?? '—'}
           unit="MT"
           accent="var(--series-2)"
         />
@@ -144,6 +115,35 @@ export function Dashboard() {
           hint="Finished but not yet shipped, all clients"
         />
       </motion.div>
+
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+        {formatRangeLabel(range)} — follows the filter above
+      </div>
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
+        className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2"
+      >
+        <StatCard
+          label={`Completed (${preset})`}
+          value={summary?.production.completedInRange ?? '—'}
+          unit="MT"
+          accent="var(--series-3)"
+          hint="Final-coat completions in the selected range"
+        />
+        <StatCard
+          label={`Dispatched (${preset})`}
+          value={summary?.dispatch.inRange ?? '—'}
+          unit="MT"
+          accent="var(--series-2)"
+          hint="Dispatched in the selected range"
+        />
+      </motion.div>
+
+      <div className="mb-4">
+        <InsightsPanel params={params} />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {summary && (

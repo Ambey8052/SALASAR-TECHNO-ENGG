@@ -66,7 +66,7 @@ export function parseManpowerSheet(rows) {
 
       columnMap.forEach(({ col, date, shift }) => {
         const value = row[col];
-        if (typeof value !== 'number') return;
+        if (typeof value !== 'number' || !Number.isInteger(value)) return;
 
         records.push({
           date,

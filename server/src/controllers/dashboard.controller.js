@@ -23,13 +23,6 @@ function startEndOfToday() {
   return { start, end };
 }
 
-function monthRange(offsetMonths) {
-  const now = new Date();
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offsetMonths, 1, 0, 0, 0, 0));
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offsetMonths + 1, 0, 23, 59, 59, 999));
-  return { start, end };
-}
-
 async function getManpowerSummary(from, to, businessUnit) {
   const match = { date: { $gte: from, $lte: to } };
   if (businessUnit) match.businessUnit = businessUnit;
@@ -84,10 +77,8 @@ async function getProductionSummary(from, to, client) {
   const match = { date: { $gte: from, $lte: to } };
   if (client) match.client = client;
   const { start: todayStart, end: todayEnd } = startEndOfToday();
-  const thisMonth = monthRange(0);
-  const lastMonth = monthRange(-1);
 
-  const [byStage, byClient, trend, completedToday, completedMonth, completedLastMonth] = await Promise.all([
+  const [byStage, byClient, trend, completedToday, completedInRange] = await Promise.all([
     ProductionRecord.aggregate([
       { $match: match },
       { $group: { _id: '$processStage', total: { $sum: '$dailyIncrementQty' } } },
@@ -103,14 +94,12 @@ async function getProductionSummary(from, to, client) {
       { $sort: { _id: 1 } },
     ]),
     sumFinalCoatIncrement(todayStart, todayEnd, client),
-    sumFinalCoatIncrement(thisMonth.start, thisMonth.end, client),
-    sumFinalCoatIncrement(lastMonth.start, lastMonth.end, client),
+    sumFinalCoatIncrement(from, to, client),
   ]);
 
   return {
     completedToday,
-    completedMonth,
-    completedLastMonth,
+    completedInRange,
     byStage: byStage.map((s) => ({ stage: s._id, total: s.total })),
     byClient: byClient.map((c) => ({ client: c._id, total: c.total })),
     trend: trend.map((t) => ({ date: t._id, total: t.total })),
@@ -129,10 +118,8 @@ async function sumDispatchQty(start, end, client) {
 async function getDispatchSummary(from, to, client) {
   const match = { date: { $gte: from, $lte: to }, ...(client ? { client } : {}) };
   const { start: todayStart, end: todayEnd } = startEndOfToday();
-  const thisMonth = monthRange(0);
-  const lastMonth = monthRange(-1);
 
-  const [trend, byClient, today, month, lastMonthTotal] = await Promise.all([
+  const [trend, byClient, today, inRange] = await Promise.all([
     DispatchRecord.aggregate([
       { $match: match },
       { $group: { _id: '$date', total: { $sum: '$qty' } } },
@@ -144,14 +131,12 @@ async function getDispatchSummary(from, to, client) {
       { $sort: { total: -1 } },
     ]),
     sumDispatchQty(todayStart, todayEnd, client),
-    sumDispatchQty(thisMonth.start, thisMonth.end, client),
-    sumDispatchQty(lastMonth.start, lastMonth.end, client),
+    sumDispatchQty(from, to, client),
   ]);
 
   return {
     today,
-    month,
-    lastMonth: lastMonthTotal,
+    inRange,
     trend: trend.map((t) => ({ date: t._id, total: t.total })),
     byClient: byClient.map((c) => ({ client: c._id, total: c.total })),
   };
@@ -181,10 +166,7 @@ async function getTargetProgress() {
   });
 }
 
-export async function getHsdSummary(req, res) {
-  const { from, to } = parseDateRange(req.query);
-  const { businessUnit, client } = req.query;
-
+export async function buildHsdSummaryData(from, to, businessUnit, client) {
   const [manpower, production, dispatch, pending, targets] = await Promise.all([
     getManpowerSummary(from, to, businessUnit),
     getProductionSummary(from, to, client),
@@ -193,15 +175,23 @@ export async function getHsdSummary(req, res) {
     getTargetProgress(),
   ]);
 
-  res.json({
+  return {
     range: { from, to },
     manpower,
     production: roundDeep(production),
     dispatch: roundDeep(dispatch),
     pending: roundDeep(pending),
     targets: roundDeep(targets),
-  });
+  };
 }
+
+export async function getHsdSummary(req, res) {
+  const { from, to } = parseDateRange(req.query);
+  const { businessUnit, client } = req.query;
+  res.json(await buildHsdSummaryData(from, to, businessUnit, client));
+}
+
+export { parseDateRange };
 
 export async function listManpowerRecords(req, res) {
   const { from, to } = parseDateRange(req.query);
