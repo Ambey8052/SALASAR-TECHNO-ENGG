@@ -16,5 +16,6 @@ export function emitSyncCompleted(syncLog) {
     finishedAt: syncLog.finishedAt,
     rowsUpserted: syncLog.rowsUpserted,
     tabsProcessed: syncLog.tabsProcessed,
+    trigger: syncLog.trigger,
   });
 }

@@ -33,6 +33,14 @@ export function Dashboard() {
     queryKey: ['hsd-summary', params],
     queryFn: () => fetchHsdSummary(params),
     placeholderData: keepPreviousData,
+    // The numbers stay exactly as first loaded for the whole session, for every role —
+    // admin included. Neither background cron syncs nor a manually triggered "Sync now"
+    // change what's on screen; only a fresh sign-in loads a new snapshot (AuthContext
+    // clears this cache on logout). "Sync now" still updates the database underneath, an
+    // admin just won't see the result until they sign back in.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   const syncStatusQuery = useQuery({
@@ -42,7 +50,6 @@ export function Dashboard() {
   });
 
   const handleSynced = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['hsd-summary'] });
     queryClient.invalidateQueries({ queryKey: ['sync-status'] });
   }, [queryClient]);
 
@@ -80,7 +87,7 @@ export function Dashboard() {
       </div>
 
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-        Today — fixed, ignores the filter above
+        Snapshot — fixed, ignores the filter above
       </div>
       <motion.div
         initial="hidden"
@@ -105,10 +112,15 @@ export function Dashboard() {
         )}
         {summary?.dispatch?.available && (
           <StatCard
-            label="Dispatched today"
-            value={summary?.dispatch.today ?? '—'}
+            label={
+              summary.dispatch.lastRecordedDay?.date
+                ? `Dispatched (${format(new Date(summary.dispatch.lastRecordedDay.date), 'd MMM')})`
+                : 'Dispatched'
+            }
+            value={summary?.dispatch.lastRecordedDay?.total ?? '—'}
             unit="MT"
             accent="var(--series-2)"
+            hint="Last day with recorded dispatch"
           />
         )}
       </motion.div>

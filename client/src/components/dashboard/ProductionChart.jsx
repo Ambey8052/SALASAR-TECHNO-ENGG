@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 
 const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
 const labelStyle = { fill: 'var(--text-secondary)', fontSize: 10 };
+const insideLabelStyle = { fill: '#ffffff', fontSize: 11, fontWeight: 600 };
 
 const STAGE_LABELS = {
   cutting: 'Cutting',
@@ -111,7 +112,7 @@ export function ProductionStageChart({ byStage }) {
           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
           <Tooltip cursor={{ fill: 'var(--surface-2)' }} content={<BarTooltip />} />
           <Bar dataKey="total" fill={STAGE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40}>
-            <LabelList dataKey="total" position="top" formatter={fmt} style={labelStyle} />
+            <LabelList dataKey="total" position="center" formatter={fmt} style={insideLabelStyle} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -130,7 +131,7 @@ export function ProductionClientChart({ byClient }) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 40, left: 0, bottom: 0 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--gridline)" horizontal={false} />
             <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} axisLine={false} tickLine={false} width={80} />
@@ -139,7 +140,7 @@ export function ProductionClientChart({ byClient }) {
               {data.map((d, i) => (
                 <Cell key={d.label} fill={CLIENT_COLORS[i % CLIENT_COLORS.length]} />
               ))}
-              <LabelList dataKey="total" position="right" formatter={fmt} style={labelStyle} />
+              <LabelList dataKey="total" position="center" formatter={fmt} style={insideLabelStyle} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

@@ -118,6 +118,20 @@ async function sumDispatchQty(start, end, client) {
   return row?.total ?? 0;
 }
 
+// "Today" is frequently 0 simply because the sheet hasn't been updated yet for the current
+// calendar day. The last day that actually has dispatch rows (skipping Sundays/off days
+// automatically, since those just won't have rows) is a more useful "as of" figure.
+async function getLastRecordedDispatch(client) {
+  const match = client ? { client } : {};
+  const [latest] = await DispatchRecord.aggregate([
+    { $match: match },
+    { $group: { _id: '$date', total: { $sum: '$qty' } } },
+    { $sort: { _id: -1 } },
+    { $limit: 1 },
+  ]);
+  return latest ? { date: latest._id, total: latest.total } : { date: null, total: 0 };
+}
+
 // Rows with no recognized client (e.g. sheet projects that couldn't be mapped to a
 // known client) are grouped under "Other" here rather than dropped, so the client-wise
 // daily breakdown still sums to the same total as the plain day-by-day trend.
@@ -145,9 +159,8 @@ async function getDispatchTrendByClient(from, to, client) {
 
 async function getDispatchSummary(from, to, client) {
   const match = { date: { $gte: from, $lte: to }, ...(client ? { client } : {}) };
-  const { start: todayStart, end: todayEnd } = startEndOfToday();
 
-  const [trend, trendByClient, byClient, today, inRange] = await Promise.all([
+  const [trend, trendByClient, byClient, lastRecordedDay, inRange] = await Promise.all([
     DispatchRecord.aggregate([
       { $match: match },
       { $group: { _id: '$date', total: { $sum: '$qty' } } },
@@ -159,12 +172,12 @@ async function getDispatchSummary(from, to, client) {
       { $group: { _id: '$client', total: { $sum: '$qty' } } },
       { $sort: { total: -1 } },
     ]),
-    sumDispatchQty(todayStart, todayEnd, client),
+    getLastRecordedDispatch(client),
     sumDispatchQty(from, to, client),
   ]);
 
   return {
-    today,
+    lastRecordedDay,
     inRange,
     trend: trend.map((t) => ({ date: t._id, total: t.total })),
     trendByClient,
@@ -191,7 +204,7 @@ const UNAVAILABLE_PRODUCTION = {
 
 const UNAVAILABLE_DISPATCH = {
   available: false,
-  today: null,
+  lastRecordedDay: null,
   inRange: null,
   trend: [],
   trendByClient: [],
