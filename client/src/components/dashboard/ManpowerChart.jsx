@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 
 const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
 const labelStyle = { fill: 'var(--text-secondary)', fontSize: 10 };
+const insideLabelStyle = { fill: '#ffffff', fontSize: 11, fontWeight: 600 };
 
 const CATEGORY_LABELS = {
   fabrication: 'Fabrication',
@@ -20,11 +21,18 @@ const CATEGORY_COLORS = {
   office: 'var(--series-7)',
 };
 
-function ChartCard({ title, children }) {
+function ChartCard({ title, subtitle, children }) {
   return (
     <div className="rounded-2xl border p-5" style={{ background: 'var(--surface-1)' }}>
-      <div className="mb-4 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-        {title}
+      <div className="mb-4">
+        <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {title}
+        </div>
+        {subtitle && (
+          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {subtitle}
+          </div>
+        )}
       </div>
       {children}
     </div>
@@ -93,14 +101,14 @@ export function ManpowerCategoryChart({ byCategory }) {
   const data = byCategory.map((c) => ({ category: CATEGORY_LABELS[c.category] || c.category, total: c.total, key: c.category }));
 
   return (
-    <ChartCard title="Manpower by category">
+    <ChartCard title="Manpower by category" subtitle="Average headcount per day, by category, in the selected range">
       {data.length === 0 ? (
         <div className="flex h-[220px] items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
           No manpower data synced for this range yet
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 40, left: 0, bottom: 0 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--gridline)" horizontal={false} />
             <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
@@ -119,7 +127,7 @@ export function ManpowerCategoryChart({ byCategory }) {
                     className="rounded-lg border px-3 py-2 text-xs shadow-md"
                     style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}
                   >
-                    {payload[0].payload.category}: <strong>{payload[0].value}</strong>
+                    {payload[0].payload.category}: <strong>{payload[0].value}</strong> avg/day
                   </div>
                 ) : null
               }
@@ -128,7 +136,7 @@ export function ManpowerCategoryChart({ byCategory }) {
               {data.map((d) => (
                 <Cell key={d.key} fill={CATEGORY_COLORS[d.key] || 'var(--series-1)'} />
               ))}
-              <LabelList dataKey="total" position="right" formatter={fmt} style={labelStyle} />
+              <LabelList dataKey="total" position="center" formatter={fmt} style={insideLabelStyle} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

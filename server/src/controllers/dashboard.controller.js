@@ -32,9 +32,12 @@ async function getManpowerSummary(from, to, businessUnit) {
   if (businessUnit) todayMatch.businessUnit = businessUnit;
 
   const [byCategory, trend, todayTotal] = await Promise.all([
+    // Average per day, not summed across the range — headcount is a daily snapshot, not
+    // a flow, so adding 30 days of counts together would wildly overstate it.
     ManpowerRecord.aggregate([
       { $match: match },
-      { $group: { _id: '$category', total: { $sum: '$count' } } },
+      { $group: { _id: { category: '$category', date: '$date' }, dailyTotal: { $sum: '$count' } } },
+      { $group: { _id: '$_id.category', total: { $avg: '$dailyTotal' } } },
       { $sort: { total: -1 } },
     ]),
     ManpowerRecord.aggregate([
@@ -210,7 +213,7 @@ export async function buildHsdSummaryData(from, to, businessUnit, client) {
 
   return {
     range: { from, to },
-    manpower,
+    manpower: roundDeep(manpower),
     production: isBhilai ? production : { available: true, ...roundDeep(production) },
     dispatch: isBhilai ? dispatch : { available: true, ...roundDeep(dispatch) },
     targets: roundDeep(targets),
