@@ -1,5 +1,8 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, LabelList } from 'recharts';
 import { format } from 'date-fns';
+
+const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
+const labelStyle = { fill: 'var(--text-secondary)', fontSize: 10 };
 
 const CATEGORY_LABELS = {
   fabrication: 'Fabrication',
@@ -52,7 +55,7 @@ export function ManpowerTrendChart({ trend }) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 20, right: 8, left: -16, bottom: 0 }}>
             <defs>
               <linearGradient id="manpowerFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--series-1)" stopOpacity={0.25} />
@@ -75,7 +78,10 @@ export function ManpowerTrendChart({ trend }) {
               stroke="var(--series-1)"
               strokeWidth={2}
               fill="url(#manpowerFill)"
-            />
+              dot={{ r: 3, fill: 'var(--series-1)', strokeWidth: 0 }}
+            >
+              <LabelList dataKey="total" position="top" formatter={fmt} style={labelStyle} />
+            </Area>
           </AreaChart>
         </ResponsiveContainer>
       )}
@@ -94,7 +100,7 @@ export function ManpowerCategoryChart({ byCategory }) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 40, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--gridline)" horizontal={false} />
             <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
@@ -122,6 +128,7 @@ export function ManpowerCategoryChart({ byCategory }) {
               {data.map((d) => (
                 <Cell key={d.key} fill={CATEGORY_COLORS[d.key] || 'var(--series-1)'} />
               ))}
+              <LabelList dataKey="total" position="right" formatter={fmt} style={labelStyle} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

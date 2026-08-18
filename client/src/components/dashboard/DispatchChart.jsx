@@ -1,8 +1,12 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { format } from 'date-fns';
 
 const CLIENT_COLORS = ['var(--series-2)', 'var(--series-3)', 'var(--series-4)', 'var(--series-5)', 'var(--series-7)'];
 const OTHER_COLOR = 'var(--text-muted)';
+const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
+const labelStyle = { fill: 'var(--text-secondary)', fontSize: 10 };
+const segmentFmt = (v) => (v ? Math.round(v * 10) / 10 : '');
+const segmentLabelStyle = { fill: '#ffffff', fontSize: 9, fontWeight: 600 };
 
 function ChartCard({ title, subtitle, children }) {
   return (
@@ -46,9 +50,13 @@ function ClientDateTooltip({ active, payload, label, clientKeys }) {
 }
 
 export function DispatchTrendChart({ trendByClient, byClient }) {
-  const data = trendByClient.map((t) => ({ ...t, date: t.date }));
   const hasOther = trendByClient.some((t) => 'Other' in t);
   const clientKeys = [...byClient.map((c) => c.client), ...(hasOther ? ['Other'] : [])];
+  const data = trendByClient.map((t) => ({
+    ...t,
+    date: t.date,
+    __total: clientKeys.reduce((sum, key) => sum + (t[key] || 0), 0),
+  }));
   const colorFor = (i, key) => (key === 'Other' ? OTHER_COLOR : CLIENT_COLORS[i % CLIENT_COLORS.length]);
 
   return (
@@ -58,8 +66,8 @@ export function DispatchTrendChart({ trendByClient, byClient }) {
           No dispatches recorded yet in this range
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={data} margin={{ top: 24, right: 8, left: -16, bottom: 0 }}>
             <CartesianGrid stroke="var(--gridline)" vertical={false} />
             <XAxis
               dataKey="date"
@@ -78,9 +86,20 @@ export function DispatchTrendChart({ trendByClient, byClient }) {
                 name={key}
                 stackId="dispatch"
                 fill={colorFor(i, key)}
-                maxBarSize={28}
+                maxBarSize={36}
                 radius={i === clientKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-              />
+              >
+                <LabelList
+                  dataKey={key}
+                  position="center"
+                  angle={-90}
+                  formatter={segmentFmt}
+                  style={segmentLabelStyle}
+                />
+                {i === clientKeys.length - 1 && (
+                  <LabelList dataKey="__total" position="top" formatter={fmt} style={labelStyle} />
+                )}
+              </Bar>
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -100,7 +119,7 @@ export function DispatchClientChart({ byClient }) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 40, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--gridline)" horizontal={false} />
             <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} axisLine={false} tickLine={false} width={80} />
@@ -118,6 +137,7 @@ export function DispatchClientChart({ byClient }) {
               {data.map((d, i) => (
                 <Cell key={d.label} fill={CLIENT_COLORS[i % CLIENT_COLORS.length]} />
               ))}
+              <LabelList dataKey="total" position="right" formatter={fmt} style={labelStyle} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

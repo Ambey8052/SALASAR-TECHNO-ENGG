@@ -1,5 +1,8 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area, LabelList } from 'recharts';
 import { format } from 'date-fns';
+
+const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
+const labelStyle = { fill: 'var(--text-secondary)', fontSize: 10 };
 
 const STAGE_LABELS = {
   cutting: 'Cutting',
@@ -68,7 +71,7 @@ export function ProductionTrendChart({ trend }) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 20, right: 8, left: -16, bottom: 0 }}>
             <defs>
               <linearGradient id="productionFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--series-3)" stopOpacity={0.25} />
@@ -85,7 +88,9 @@ export function ProductionTrendChart({ trend }) {
             />
             <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
             <Tooltip content={<TrendTooltip />} />
-            <Area type="monotone" dataKey="total" stroke="var(--series-3)" strokeWidth={2} fill="url(#productionFill)" />
+            <Area type="monotone" dataKey="total" stroke="var(--series-3)" strokeWidth={2} fill="url(#productionFill)" dot={{ r: 3, fill: 'var(--series-3)', strokeWidth: 0 }}>
+              <LabelList dataKey="total" position="top" formatter={fmt} style={labelStyle} />
+            </Area>
           </AreaChart>
         </ResponsiveContainer>
       )}
@@ -100,12 +105,14 @@ export function ProductionStageChart({ byStage }) {
   return (
     <ChartCard title="Production by process stage" subtitle="MT progressed per stage in the selected range">
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 20, right: 8, left: -16, bottom: 0 }}>
           <CartesianGrid stroke="var(--gridline)" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--baseline)' }} tickLine={false} />
           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
           <Tooltip cursor={{ fill: 'var(--surface-2)' }} content={<BarTooltip />} />
-          <Bar dataKey="total" fill={STAGE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40} />
+          <Bar dataKey="total" fill={STAGE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40}>
+            <LabelList dataKey="total" position="top" formatter={fmt} style={labelStyle} />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>
@@ -123,7 +130,7 @@ export function ProductionClientChart({ byClient }) {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 40, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--gridline)" horizontal={false} />
             <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} axisLine={false} tickLine={false} width={80} />
@@ -132,6 +139,7 @@ export function ProductionClientChart({ byClient }) {
               {data.map((d, i) => (
                 <Cell key={d.label} fill={CLIENT_COLORS[i % CLIENT_COLORS.length]} />
               ))}
+              <LabelList dataKey="total" position="right" formatter={fmt} style={labelStyle} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
