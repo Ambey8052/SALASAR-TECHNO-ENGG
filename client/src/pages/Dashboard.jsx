@@ -5,11 +5,9 @@ import { format } from 'date-fns';
 import { fetchHsdSummary, fetchSyncStatus } from '../lib/api';
 import { FilterBar, PRESETS, formatRangeLabel } from '../components/dashboard/FilterBar';
 import { StatCard } from '../components/dashboard/StatCard';
-import { useAuth } from '../context/AuthContext';
 import { ManpowerTrendChart, ManpowerCategoryChart } from '../components/dashboard/ManpowerChart';
 import { ProductionTrendChart, ProductionStageChart, ProductionClientChart } from '../components/dashboard/ProductionChart';
 import { DispatchTrendChart, DispatchClientChart } from '../components/dashboard/DispatchChart';
-import { TargetPanel } from '../components/dashboard/TargetPanel';
 import { InsightsPanel } from '../components/dashboard/InsightsPanel';
 import { SyncStatusBadge } from '../components/dashboard/SyncStatusBadge';
 import { useSyncSocket } from '../hooks/useSyncSocket';
@@ -21,7 +19,6 @@ export function Dashboard() {
   const [range, setRange] = useState(PRESETS[2].getRange());
   const [businessUnit, setBusinessUnit] = useState('HSD');
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   const params = {
     from: format(range.from, 'yyyy-MM-dd'),
@@ -57,7 +54,6 @@ export function Dashboard() {
 
   const summary = summaryQuery.data;
   const productionAvailable = summary?.production?.available ?? false;
-  const knownClients = summary?.production?.byClient.map((c) => c.client) ?? [];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
@@ -174,9 +170,6 @@ export function Dashboard() {
               </>
             )}
             <ManpowerCategoryChart byCategory={summary.manpower.byCategory} />
-            {productionAvailable && (
-              <TargetPanel targets={summary.targets} knownClients={knownClients} isAdmin={user?.role === 'admin'} />
-            )}
           </>
         )}
       </div>
