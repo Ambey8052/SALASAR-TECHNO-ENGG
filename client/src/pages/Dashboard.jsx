@@ -15,8 +15,8 @@ import { useSyncSocket } from '../hooks/useSyncSocket';
 const UNIT_LABEL = { HSD: 'HSD', BU: 'Bhilai' };
 
 export function Dashboard() {
-  const [preset, setPreset] = useState('Last 30 days');
-  const [range, setRange] = useState(PRESETS[2].getRange());
+  const [preset, setPreset] = useState('Month to date');
+  const [range, setRange] = useState(PRESETS[3].getRange());
   const [businessUnit, setBusinessUnit] = useState('HSD');
   const queryClient = useQueryClient();
 

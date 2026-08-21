@@ -11,10 +11,15 @@ function buildDateColumnPairs(headerRow) {
   // Each date occupies two columns: a running (cumulative) total, then that day's own
   // increment. Only the cumulative column carries the date value in the header row, so the
   // increment column is inferred as "the next column over", unless that column is itself
-  // another date's cumulative column.
+  // another date's cumulative column. Deliberately not bounds-checking against
+  // headerRow.length here: the parsed sheet trims each row to its own last non-empty cell,
+  // and the header row for the *last* date in a block often ends right at that date's own
+  // cell (no populated slot after it), even though the data rows below it do have a value
+  // one column over. Bounds-checking against the header row's length was wrongly treating
+  // that in-range data cell as missing for the final day of every month.
   return dateColumnIndexes.map((col) => {
     const incrementCol = col + 1;
-    const hasIncrementCol = incrementCol < headerRow.length && !dateColumnIndexes.includes(incrementCol);
+    const hasIncrementCol = !dateColumnIndexes.includes(incrementCol);
     return {
       cumulativeCol: col,
       incrementCol: hasIncrementCol ? incrementCol : null,

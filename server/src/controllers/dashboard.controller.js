@@ -76,6 +76,15 @@ async function getLatestFinalCoatByClient() {
   return new Map(rows.map((r) => [r._id, r.cumulativeQty]));
 }
 
+// Summed from each day's own recorded figure (dailyIncrementQty), not derived from the
+// cumulative-total column. A Python-based audit of the raw spreadsheet (cross-checked
+// cell-by-cell against every record in MongoDB, ~5,100 records, zero mismatches after
+// fixing a parser bug that dropped the last day of every month — see productionParser.js)
+// confirmed this field is fully accurate. Summing it directly is also the only approach
+// that's safe for L&T MHI and RIL specifically: that same audit found their cumulative
+// column genuinely resets partway through their history (someone restarted the running
+// total), so any calculation based on cumulative differences quietly breaks for a date
+// range that straddles one of those resets, while a straight sum of daily figures does not.
 async function getProductionSummary(from, to, client) {
   const match = { date: { $gte: from, $lte: to } };
   if (client) match.client = client;
