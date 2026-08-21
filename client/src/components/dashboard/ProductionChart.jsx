@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, AreaChart, Area, LabelList } from 'recharts';
 import { format } from 'date-fns';
 
 const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
@@ -36,31 +36,6 @@ function ChartCard({ title, subtitle, children }) {
   );
 }
 
-function BarTooltip({ active, payload, labelKey = 'label' }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-lg border px-3 py-2 text-xs shadow-md"
-      style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}
-    >
-      {payload[0].payload[labelKey]}: <strong>{payload[0].value}</strong> MT
-    </div>
-  );
-}
-
-function TrendTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-lg border px-3 py-2 text-xs shadow-md"
-      style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}
-    >
-      <div style={{ color: 'var(--text-muted)' }}>{format(new Date(label), 'd MMM yyyy')}</div>
-      <div className="mt-1 font-semibold">{payload[0].value} MT completed</div>
-    </div>
-  );
-}
-
 export function ProductionTrendChart({ trend }) {
   const data = trend.map((t) => ({ date: t.date, total: t.total }));
 
@@ -88,7 +63,6 @@ export function ProductionTrendChart({ trend }) {
               tickLine={false}
             />
             <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-            <Tooltip content={<TrendTooltip />} />
             <Area type="monotone" dataKey="total" stroke="var(--series-3)" strokeWidth={2} fill="url(#productionFill)" dot={{ r: 3, fill: 'var(--series-3)', strokeWidth: 0 }}>
               <LabelList dataKey="total" position="top" formatter={fmt} style={labelStyle} />
             </Area>
@@ -110,7 +84,6 @@ export function ProductionStageChart({ byStage }) {
           <CartesianGrid stroke="var(--gridline)" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--baseline)' }} tickLine={false} />
           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-          <Tooltip cursor={{ fill: 'var(--surface-2)' }} content={<BarTooltip />} />
           <Bar dataKey="total" fill={STAGE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40}>
             <LabelList dataKey="total" position="center" formatter={fmt} style={insideLabelStyle} />
           </Bar>
@@ -135,7 +108,6 @@ export function ProductionClientChart({ byClient }) {
             <CartesianGrid stroke="var(--gridline)" horizontal={false} />
             <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} axisLine={false} tickLine={false} width={80} />
-            <Tooltip cursor={{ fill: 'var(--surface-2)' }} content={<BarTooltip />} />
             <Bar dataKey="total" radius={[0, 4, 4, 0]} maxBarSize={22}>
               {data.map((d, i) => (
                 <Cell key={d.label} fill={CLIENT_COLORS[i % CLIENT_COLORS.length]} />

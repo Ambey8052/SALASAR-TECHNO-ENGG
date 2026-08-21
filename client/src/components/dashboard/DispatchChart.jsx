@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { format } from 'date-fns';
 
 const CLIENT_COLORS = ['var(--series-2)', 'var(--series-3)', 'var(--series-4)', 'var(--series-5)', 'var(--series-7)'];
@@ -23,29 +23,6 @@ function ChartCard({ title, subtitle, children }) {
         )}
       </div>
       {children}
-    </div>
-  );
-}
-
-function ClientDateTooltip({ active, payload, label, clientKeys }) {
-  if (!active || !payload?.length) return null;
-  const total = clientKeys.reduce((sum, key) => sum + (payload[0]?.payload[key] || 0), 0);
-  return (
-    <div
-      className="rounded-lg border px-3 py-2 text-xs shadow-md"
-      style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}
-    >
-      <div className="mb-1" style={{ color: 'var(--text-muted)' }}>{format(new Date(label), 'd MMM yyyy')}</div>
-      {clientKeys.map((key) => {
-        const value = payload[0]?.payload[key];
-        if (!value) return null;
-        return (
-          <div key={key}>
-            {key}: <strong>{value}</strong> MT
-          </div>
-        );
-      })}
-      <div className="mt-1 border-t pt-1 font-semibold">Total: {Math.round(total * 1000) / 1000} MT</div>
     </div>
   );
 }
@@ -78,7 +55,6 @@ export function DispatchTrendChart({ trendByClient, byClient }) {
               tickLine={false}
             />
             <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-            <Tooltip cursor={{ fill: 'var(--surface-2)' }} content={<ClientDateTooltip clientKeys={clientKeys} />} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {clientKeys.map((key, i) => (
               <Bar
@@ -124,16 +100,6 @@ export function DispatchClientChart({ byClient }) {
             <CartesianGrid stroke="var(--gridline)" horizontal={false} />
             <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="label" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} axisLine={false} tickLine={false} width={80} />
-            <Tooltip
-              cursor={{ fill: 'var(--surface-2)' }}
-              content={({ active, payload }) =>
-                active && payload?.length ? (
-                  <div className="rounded-lg border px-3 py-2 text-xs shadow-md" style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}>
-                    {payload[0].payload.label}: <strong>{payload[0].value}</strong> MT
-                  </div>
-                ) : null
-              }
-            />
             <Bar dataKey="total" radius={[0, 4, 4, 0]} maxBarSize={22}>
               {data.map((d, i) => (
                 <Cell key={d.label} fill={CLIENT_COLORS[i % CLIENT_COLORS.length]} />

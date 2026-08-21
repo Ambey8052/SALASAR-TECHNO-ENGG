@@ -1,4 +1,4 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, LabelList } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, Cell, LabelList } from 'recharts';
 import { format } from 'date-fns';
 
 const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
@@ -39,19 +39,6 @@ function ChartCard({ title, subtitle, children }) {
   );
 }
 
-function TrendTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      className="rounded-lg border px-3 py-2 text-xs shadow-md"
-      style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}
-    >
-      <div style={{ color: 'var(--text-muted)' }}>{format(new Date(label), 'd MMM yyyy')}</div>
-      <div className="mt-1 font-semibold">{payload[0].value} on site</div>
-    </div>
-  );
-}
-
 export function ManpowerTrendChart({ trend }) {
   const data = trend.map((t) => ({ date: t.date, total: t.total }));
 
@@ -79,7 +66,6 @@ export function ManpowerTrendChart({ trend }) {
               tickLine={false}
             />
             <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-            <Tooltip content={<TrendTooltip />} />
             <Area
               type="monotone"
               dataKey="total"
@@ -118,19 +104,6 @@ export function ManpowerCategoryChart({ byCategory }) {
               axisLine={false}
               tickLine={false}
               width={90}
-            />
-            <Tooltip
-              cursor={{ fill: 'var(--surface-2)' }}
-              content={({ active, payload }) =>
-                active && payload?.length ? (
-                  <div
-                    className="rounded-lg border px-3 py-2 text-xs shadow-md"
-                    style={{ background: 'var(--surface-2)', color: 'var(--text-primary)' }}
-                  >
-                    {payload[0].payload.category}: <strong>{payload[0].value}</strong> avg/day
-                  </div>
-                ) : null
-              }
             />
             <Bar dataKey="total" radius={[0, 4, 4, 0]} maxBarSize={22}>
               {data.map((d) => (
