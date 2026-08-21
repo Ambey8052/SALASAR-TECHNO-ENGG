@@ -160,23 +160,19 @@ export function Dashboard() {
         </>
       )}
 
-      <div className="mb-4">
-        <InsightsPanel params={params} />
-      </div>
-
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {summary && (
           <>
+            <ManpowerTrendChart trend={summary.manpower.trend} />
             {productionAvailable && (
               <>
+                <ProductionStageChart byStage={summary.production.byStage} />
                 <ProductionTrendChart trend={summary.production.trend} />
                 <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />
-                <ProductionStageChart byStage={summary.production.byStage} />
                 <ProductionClientChart byClient={summary.production.byClient} />
                 <DispatchClientChart byClient={summary.dispatch.byClient} />
               </>
             )}
-            <ManpowerTrendChart trend={summary.manpower.trend} />
             <ManpowerCategoryChart byCategory={summary.manpower.byCategory} />
             {productionAvailable && (
               <TargetPanel targets={summary.targets} knownClients={knownClients} isAdmin={user?.role === 'admin'} />
@@ -184,6 +180,12 @@ export function Dashboard() {
           </>
         )}
       </div>
+
+      {summary && (
+        <div className="mt-4">
+          <InsightsPanel params={params} />
+        </div>
+      )}
 
       {summaryQuery.isLoading && (
         <div className="mt-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
