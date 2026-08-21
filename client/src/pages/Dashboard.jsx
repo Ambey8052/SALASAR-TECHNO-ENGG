@@ -6,7 +6,7 @@ import { fetchHsdSummary, fetchSyncStatus } from '../lib/api';
 import { FilterBar, PRESETS, formatRangeLabel } from '../components/dashboard/FilterBar';
 import { StatCard } from '../components/dashboard/StatCard';
 import { ManpowerTrendChart, ManpowerCategoryChart } from '../components/dashboard/ManpowerChart';
-import { ProductionTrendChart, ProductionStageChart, ProductionClientChart } from '../components/dashboard/ProductionChart';
+import { ProductionTrendChart, ProductionStageChart } from '../components/dashboard/ProductionChart';
 import { DispatchTrendChart, DispatchClientChart } from '../components/dashboard/DispatchChart';
 import { InsightsPanel } from '../components/dashboard/InsightsPanel';
 import { SyncStatusBadge } from '../components/dashboard/SyncStatusBadge';
@@ -159,17 +159,16 @@ export function Dashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {summary && (
           <>
+            <ManpowerCategoryChart byCategory={summary.manpower.byCategory} />
             <ManpowerTrendChart trend={summary.manpower.trend} />
             {productionAvailable && (
               <>
                 <ProductionStageChart byStage={summary.production.byStage} />
                 <ProductionTrendChart trend={summary.production.trend} />
-                <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />
-                <ProductionClientChart byClient={summary.production.byClient} />
                 <DispatchClientChart byClient={summary.dispatch.byClient} />
+                <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />
               </>
             )}
-            <ManpowerCategoryChart byCategory={summary.manpower.byCategory} />
           </>
         )}
       </div>
