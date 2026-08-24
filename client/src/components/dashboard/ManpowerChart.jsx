@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, Cell, LabelList } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, BarChart, Bar, Cell, LabelList } from 'recharts';
 import { format } from 'date-fns';
 import { ChartModal, ExpandHint } from './ChartModal';
 
 const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
-const labelStyle = { fill: 'var(--text-secondary)', fontSize: 10 };
 const insideLabelStyle = { fill: '#ffffff', fontSize: 11, fontWeight: 600 };
 
 const CATEGORY_LABELS = {
@@ -51,15 +50,9 @@ function ChartCard({ title, subtitle, onClick, children }) {
 
 const PX_PER_POINT = 42;
 
-function ManpowerAreaChart({ data, expanded }) {
+function ManpowerLineChart({ data, expanded }) {
   const chart = (
-    <AreaChart data={data} margin={{ top: 20, right: 8, left: expanded ? 0 : -16, bottom: 0 }}>
-      <defs>
-        <linearGradient id="manpowerFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--series-1)" stopOpacity={0.25} />
-          <stop offset="100%" stopColor="var(--series-1)" stopOpacity={0} />
-        </linearGradient>
-      </defs>
+    <LineChart data={data} margin={{ top: 20, right: 8, left: expanded ? 0 : -16, bottom: 0 }}>
       <CartesianGrid stroke="var(--gridline)" vertical={false} />
       <XAxis
         dataKey="date"
@@ -73,17 +66,30 @@ function ManpowerAreaChart({ data, expanded }) {
         height={expanded ? 50 : 30}
       />
       <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-      <Area
+      <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => CATEGORY_LABELS[v] || v} />
+      <Line
         type="monotone"
-        dataKey="total"
-        stroke="var(--series-1)"
-        strokeWidth={2}
-        fill="url(#manpowerFill)"
-        dot={{ r: 3, fill: 'var(--series-1)', strokeWidth: 0 }}
+        dataKey="fabrication"
+        name="fabrication"
+        stroke={CATEGORY_COLORS.fabrication}
+        strokeWidth={2.5}
+        dot={{ r: 3, fill: CATEGORY_COLORS.fabrication, strokeWidth: 0 }}
+        connectNulls
       >
-        <LabelList dataKey="total" position="top" formatter={fmt} style={labelStyle} />
-      </Area>
-    </AreaChart>
+        <LabelList dataKey="fabrication" position="top" formatter={fmt} style={{ fill: CATEGORY_COLORS.fabrication, fontSize: 10, fontWeight: 600 }} />
+      </Line>
+      <Line
+        type="monotone"
+        dataKey="painting"
+        name="painting"
+        stroke={CATEGORY_COLORS.painting}
+        strokeWidth={2.5}
+        dot={{ r: 3, fill: CATEGORY_COLORS.painting, strokeWidth: 0 }}
+        connectNulls
+      >
+        <LabelList dataKey="painting" position="bottom" formatter={fmt} style={{ fill: CATEGORY_COLORS.painting, fontSize: 10, fontWeight: 600 }} />
+      </Line>
+    </LineChart>
   );
 
   if (!expanded) {
@@ -105,29 +111,33 @@ function ManpowerAreaChart({ data, expanded }) {
   );
 }
 
-export function ManpowerTrendChart({ trend }) {
+export function ManpowerTrendChart({ trendByCategory }) {
   const [expanded, setExpanded] = useState(false);
-  const data = trend.map((t) => ({ date: t.date, total: t.total }));
+  const data = trendByCategory.map((t) => ({ date: t.date, fabrication: t.fabrication ?? 0, painting: t.painting ?? 0 }));
   const empty = data.length === 0;
 
   return (
     <>
-      <ChartCard title="Manpower on site" onClick={empty ? undefined : () => setExpanded(true)}>
+      <ChartCard
+        title="Manpower on site"
+        subtitle="Fabrication vs painting, per day, in the selected range"
+        onClick={empty ? undefined : () => setExpanded(true)}
+      >
         {empty ? (
           <div className="flex h-[220px] items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
             No manpower data synced for this range yet
           </div>
         ) : (
-          <ManpowerAreaChart data={data} expanded={false} />
+          <ManpowerLineChart data={data} expanded={false} />
         )}
       </ChartCard>
       <ChartModal
         title="Manpower on site"
-        subtitle="Every day in the selected range"
+        subtitle="Fabrication vs painting — every day in the selected range"
         isOpen={expanded}
         onClose={() => setExpanded(false)}
       >
-        <ManpowerAreaChart data={data} expanded />
+        <ManpowerLineChart data={data} expanded />
       </ChartModal>
     </>
   );

@@ -31,7 +31,7 @@ async function getManpowerSummary(from, to, businessUnit) {
   const todayMatch = { date: { $gte: start, $lte: end } };
   if (businessUnit) todayMatch.businessUnit = businessUnit;
 
-  const [byCategory, trend, todayTotal] = await Promise.all([
+  const [byCategory, trend, trendByCategoryRows, todayTotal] = await Promise.all([
     // Average per day, not summed across the range — headcount is a daily snapshot, not
     // a flow, so adding 30 days of counts together would wildly overstate it.
     ManpowerRecord.aggregate([
@@ -45,16 +45,30 @@ async function getManpowerSummary(from, to, businessUnit) {
       { $group: { _id: '$date', total: { $sum: '$count' } } },
       { $sort: { _id: 1 } },
     ]),
+    // Fabrication and painting broken out day by day, for the two-line manpower trend chart.
+    ManpowerRecord.aggregate([
+      { $match: { ...match, category: { $in: ['fabrication', 'painting'] } } },
+      { $group: { _id: { date: '$date', category: '$category' }, total: { $sum: '$count' } } },
+      { $sort: { '_id.date': 1 } },
+    ]),
     ManpowerRecord.aggregate([
       { $match: todayMatch },
       { $group: { _id: null, total: { $sum: '$count' } } },
     ]),
   ]);
 
+  const trendByCategoryMap = new Map();
+  for (const row of trendByCategoryRows) {
+    const key = row._id.date.toISOString();
+    if (!trendByCategoryMap.has(key)) trendByCategoryMap.set(key, { date: row._id.date });
+    trendByCategoryMap.get(key)[row._id.category] = row.total;
+  }
+
   return {
     today: todayTotal[0]?.total ?? 0,
     byCategory: byCategory.map((c) => ({ category: c._id, total: c.total })),
     trend: trend.map((t) => ({ date: t._id, total: t.total })),
+    trendByCategory: [...trendByCategoryMap.values()].sort((a, b) => a.date - b.date),
   };
 }
 

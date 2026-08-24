@@ -160,7 +160,7 @@ export function Dashboard() {
         {summary && (
           <>
             <ManpowerCategoryChart byCategory={summary.manpower.byCategory} />
-            <ManpowerTrendChart trend={summary.manpower.trend} />
+            <ManpowerTrendChart trendByCategory={summary.manpower.trendByCategory} />
             {productionAvailable && (
               <>
                 <ProductionStageChart byStageByClient={summary.production.byStageByClient} />
