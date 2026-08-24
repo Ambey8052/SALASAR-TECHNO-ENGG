@@ -7,19 +7,32 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const DEFAULT_SUBJECT = 'Weekly Zetwerk MIS and Department Performance Report- Week 34 from (17-08-26) to (23-08-26).';
 
-// Each upload slot is a non-editable "island" inside the rich-text body: clicking or
-// pressing Enter/Space on it opens a file picker (see handleBodyClick/handleBodyKeyDown),
-// and the chosen image replaces the placeholder in place. Being contenteditable="false"
-// keeps it from being typed into while the surrounding report text stays fully editable.
+// Each upload slot is a non-editable "island" inside the rich-text body: clicking it,
+// pressing Enter/Space on it, or dragging an image file onto it opens/accepts a file (see
+// handleBodyClick/handleBodyKeyDown/handleBodyDrop), and the chosen image replaces the
+// placeholder in place. Being contenteditable="false" keeps it from being typed into while
+// the surrounding report text stays fully editable.
 function uploadBoxHtml() {
   return `<div class="upload-box" data-upload-box contenteditable="false" role="button" tabindex="0" aria-label="Upload image"
-      style="margin:8px 0;display:flex;align-items:center;justify-content:center;height:130px;border:2px dashed var(--baseline);border-radius:10px;cursor:pointer;background:var(--surface-1);color:var(--text-secondary);font-size:14px;font-weight:500;">
-    <span>Upload Image</span>
+      style="margin:8px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:130px;border:2px dashed var(--baseline);border-radius:10px;cursor:pointer;background:var(--surface-1);color:var(--text-secondary);font-size:13px;font-weight:500;text-align:center;transition:border-color .15s,background .15s;">
+    <span style="font-size:20px;">📁</span>
+    <span>Drag &amp; drop an image, or click to upload</span>
   </div>`;
 }
 
+// A "line" is a piece of fixed report text with a small pencil icon at the end; clicking
+// the icon selects that line's text so the process coordinator can type over it immediately,
+// without needing a formatting toolbar or hunting for where the editable text starts.
+function reportLineHtml(innerHtml, extraStyle = '') {
+  return `<p class="report-line" data-line style="${extraStyle}">
+    <span class="line-text">${innerHtml}</span>
+    <button type="button" data-edit-line contenteditable="false" aria-label="Edit this line" title="Edit text"
+        style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:4px;border:none;background:transparent;cursor:pointer;font-size:13px;line-height:1;vertical-align:middle;opacity:.55;">✏️</button>
+  </p>`;
+}
+
 function workerRowHtml(number, sample) {
-  return `<p class="worker-row" style="margin:10px 0 0;">${number}. ${sample}</p>${uploadBoxHtml()}`;
+  return `${reportLineHtml(`${number}. ${sample}`, 'margin:10px 0 0;')}${uploadBoxHtml()}`;
 }
 
 const SAMPLE_WORKERS = [
@@ -60,9 +73,9 @@ const SIGNATURE_HTML = `
 const DEFAULT_BODY = `
   <p>Dear Production Head,</p>
   <p>Please find attached the Weekly performance for your department, please check and review,</p>
-  <p style="margin-top:12px;"><strong>1. MIS Production Department Report,</strong></p>
+  ${reportLineHtml('<strong>1. MIS Production Department Report,</strong>', 'margin-top:12px;')}
   ${uploadBoxHtml()}
-  <p><strong>2. Full department performance,</strong></p>
+  ${reportLineHtml('<strong>2. Full department performance,</strong>')}
   ${uploadBoxHtml()}
   <div id="worker-list">
     ${SAMPLE_WORKERS.map((w, i) => workerRowHtml(i + 1, w)).join('\n')}
@@ -168,75 +181,19 @@ function RecipientField({ label, values, onChange, placeholder, disabled }) {
   );
 }
 
-const TOOLBAR_BUTTONS = [
-  { command: 'bold', icon: 'B', label: 'Bold', style: { fontWeight: 700 } },
-  { command: 'italic', icon: 'I', label: 'Italic', style: { fontStyle: 'italic' } },
-  { command: 'underline', icon: 'U', label: 'Underline', style: { textDecoration: 'underline' } },
-];
-
-const TOOLBAR_BUTTON_CLASS = `h-8 w-8 rounded-md border text-sm transition-colors hover:bg-[var(--surface-1)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${FOCUS_RING}`;
-
 export function Email() {
   const [to, setTo] = useState(['ambeydeep8052@gmail.com']);
   const [cc, setCc] = useState(['ea.hsd@salasartechno.com']);
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [status, setStatus] = useState('idle'); // idle | sending | sent | error
   const [errorMessage, setErrorMessage] = useState('');
-  const [activeFormats, setActiveFormats] = useState({});
   const bodyRef = useRef(null);
-  const fileInputRef = useRef(null);
   const boxFileInputRef = useRef(null);
   const pendingBoxRef = useRef(null);
   const sending = status === 'sending';
 
-  function syncActiveFormats() {
-    setActiveFormats({
-      bold: document.queryCommandState('bold'),
-      italic: document.queryCommandState('italic'),
-      underline: document.queryCommandState('underline'),
-    });
-  }
-
-  function exec(command) {
-    bodyRef.current?.focus();
-    document.execCommand(command);
-    syncActiveFormats();
-  }
-
-  function insertImage(file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      bodyRef.current?.focus();
-      document.execCommand('insertImage', false, reader.result);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function openBoxPicker(box) {
-    if (sending) return;
-    pendingBoxRef.current = box;
-    boxFileInputRef.current?.click();
-  }
-
-  function handleBodyClick(e) {
-    const box = e.target.closest('[data-upload-box]');
-    if (box) openBoxPicker(box);
-  }
-
-  function handleBodyKeyDown(e) {
-    const box = e.target.closest('[data-upload-box]');
-    if (box && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      openBoxPicker(box);
-    }
-  }
-
-  function handleBoxFileChange(e) {
-    const file = e.target.files?.[0];
-    const box = pendingBoxRef.current;
-    e.target.value = '';
-    if (!file || !box) return;
-
+  function applyImageToBox(box, file) {
+    if (!file || !file.type.startsWith('image/')) return;
     const reader = new FileReader();
     reader.onload = () => {
       box.innerHTML = `<img src="${reader.result}" alt="Uploaded image" style="max-width:100%;max-height:260px;display:block;border-radius:8px;margin:0 auto;" />`;
@@ -248,19 +205,80 @@ export function Email() {
     reader.readAsDataURL(file);
   }
 
-  function handleAddWorkerRow() {
-    const list = bodyRef.current?.querySelector('#worker-list');
-    if (!list) return;
-    const nextNumber = list.querySelectorAll('.worker-row').length + 1;
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = workerRowHtml(nextNumber, '[ Worker Name ] (Project- ___ - Tasks)');
-    while (wrapper.firstChild) list.appendChild(wrapper.firstChild);
+  function openBoxPicker(box) {
+    if (sending) return;
+    pendingBoxRef.current = box;
+    boxFileInputRef.current?.click();
   }
 
-  function handleFileChange(e) {
-    const files = Array.from(e.target.files || []);
-    files.forEach(insertImage);
+  function selectLineText(editBtn) {
+    const line = editBtn.closest('[data-line]');
+    const textEl = line?.querySelector('.line-text');
+    if (!textEl || !bodyRef.current) return;
+    bodyRef.current.focus();
+    const range = document.createRange();
+    range.selectNodeContents(textEl);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function handleBodyClick(e) {
+    if (sending) return;
+    const box = e.target.closest('[data-upload-box]');
+    if (box) {
+      openBoxPicker(box);
+      return;
+    }
+    const editBtn = e.target.closest('[data-edit-line]');
+    if (editBtn) selectLineText(editBtn);
+  }
+
+  function handleBodyKeyDown(e) {
+    if (sending) return;
+    const box = e.target.closest('[data-upload-box]');
+    if (box && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      openBoxPicker(box);
+      return;
+    }
+    const editBtn = e.target.closest('[data-edit-line]');
+    if (editBtn && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      selectLineText(editBtn);
+    }
+  }
+
+  function handleBodyDragOver(e) {
+    const box = e.target.closest('[data-upload-box]');
+    if (!box || sending) return;
+    e.preventDefault();
+    box.style.borderColor = 'var(--series-1)';
+    box.style.background = 'var(--surface-2)';
+  }
+
+  function handleBodyDragLeave(e) {
+    const box = e.target.closest('[data-upload-box]');
+    if (!box) return;
+    if (box.contains(e.relatedTarget)) return;
+    box.style.borderColor = '';
+    box.style.background = '';
+  }
+
+  function handleBodyDrop(e) {
+    const box = e.target.closest('[data-upload-box]');
+    if (!box || sending) return;
+    e.preventDefault();
+    box.style.borderColor = '';
+    box.style.background = '';
+    applyImageToBox(box, e.dataTransfer.files?.[0]);
+  }
+
+  function handleBoxFileChange(e) {
+    const file = e.target.files?.[0];
+    const box = pendingBoxRef.current;
     e.target.value = '';
+    if (file && box) applyImageToBox(box, file);
   }
 
   async function handleSend(e) {
@@ -326,71 +344,15 @@ export function Email() {
         </div>
 
         <div className="p-4 sm:p-5">
-          <div className="mb-2 flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Text formatting" aria-controls="email-body">
-            {TOOLBAR_BUTTONS.map((btn) => (
-              <button
-                key={btn.command}
-                type="button"
-                onClick={() => exec(btn.command)}
-                onMouseDown={(e) => e.preventDefault()}
-                disabled={sending}
-                aria-label={btn.label}
-                aria-pressed={Boolean(activeFormats[btn.command])}
-                title={btn.label}
-                className={TOOLBAR_BUTTON_CLASS}
-                style={{
-                  ...btn.style,
-                  color: 'var(--text-primary)',
-                  background: activeFormats[btn.command] ? 'var(--surface-page)' : 'var(--surface-2)',
-                  borderColor: activeFormats[btn.command] ? 'var(--series-1)' : undefined,
-                }}
-              >
-                {btn.icon}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={sending}
-              aria-label="Insert image"
-              title="Insert image"
-              className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors hover:bg-[var(--surface-1)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
-              style={{ color: 'var(--text-primary)', background: 'var(--surface-2)' }}
-            >
-              🖼 Insert image
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              disabled={sending}
-              aria-hidden="true"
-              tabIndex={-1}
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              onClick={handleAddWorkerRow}
-              disabled={sending}
-              aria-label="Add worker row"
-              title="Add worker row"
-              className={`ml-auto flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors hover:bg-[var(--surface-1)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
-              style={{ color: 'var(--text-primary)', background: 'var(--surface-2)' }}
-            >
-              + Add worker row
-            </button>
-            <input
-              ref={boxFileInputRef}
-              type="file"
-              accept="image/*"
-              hidden
-              aria-hidden="true"
-              tabIndex={-1}
-              onChange={handleBoxFileChange}
-            />
-          </div>
+          <input
+            ref={boxFileInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            aria-hidden="true"
+            tabIndex={-1}
+            onChange={handleBoxFileChange}
+          />
 
           <div
             id="email-body"
@@ -402,11 +364,11 @@ export function Email() {
             aria-multiline="true"
             aria-label="Email body"
             data-placeholder="Write your report…"
-            onKeyUp={syncActiveFormats}
-            onMouseUp={syncActiveFormats}
-            onFocus={syncActiveFormats}
             onClick={handleBodyClick}
             onKeyDown={handleBodyKeyDown}
+            onDragOver={handleBodyDragOver}
+            onDragLeave={handleBodyDragLeave}
+            onDrop={handleBodyDrop}
             className={`min-h-[280px] w-full rounded-lg border p-4 text-sm leading-relaxed disabled:cursor-not-allowed empty:before:italic empty:before:text-[var(--text-muted)] empty:before:content-[attr(data-placeholder)] [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_img]:my-2 [&_img]:max-w-full [&_li]:ml-4 [&_p]:mb-2 [&_ul]:list-disc ${FOCUS_RING}`}
             style={{ background: 'var(--surface-2)', color: 'var(--text-primary)', borderColor: 'var(--baseline)', opacity: sending ? 0.7 : 1 }}
           />
