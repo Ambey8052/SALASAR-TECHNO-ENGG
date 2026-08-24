@@ -1,9 +1,10 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, AreaChart, Area, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Cell, AreaChart, Area, LabelList } from 'recharts';
 import { format } from 'date-fns';
 
 const fmt = (v) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
 const labelStyle = { fill: 'var(--text-secondary)', fontSize: 10 };
 const insideLabelStyle = { fill: '#ffffff', fontSize: 11, fontWeight: 600 };
+const segmentFmt = (v) => (v ? Math.round(v * 10) / 10 : '');
 
 const STAGE_LABELS = {
   cutting: 'Cutting',
@@ -15,7 +16,6 @@ const STAGE_LABELS = {
 };
 
 const STAGE_ORDER = ['cutting', 'fitUp', 'welding', 'visual', 'blasting', 'finalCoat'];
-const STAGE_COLOR = 'var(--series-1)';
 const CLIENT_COLORS = ['var(--series-2)', 'var(--series-3)', 'var(--series-4)', 'var(--series-5)', 'var(--series-7)'];
 
 function ChartCard({ title, subtitle, children }) {
@@ -73,20 +73,48 @@ export function ProductionTrendChart({ trend }) {
   );
 }
 
-export function ProductionStageChart({ byStage }) {
-  const map = new Map(byStage.map((s) => [s.stage, s.total]));
-  const data = STAGE_ORDER.map((stage) => ({ stage, label: STAGE_LABELS[stage], total: map.get(stage) || 0 }));
+export function ProductionStageChart({ byStageByClient }) {
+  const byStageMap = new Map(byStageByClient.map((row) => [row.stage, row]));
+
+  const clientTotals = new Map();
+  byStageByClient.forEach((row) => {
+    Object.entries(row).forEach(([key, val]) => {
+      if (key === 'stage') return;
+      clientTotals.set(key, (clientTotals.get(key) || 0) + val);
+    });
+  });
+  const clientKeys = [...clientTotals.entries()].sort((a, b) => b[1] - a[1]).map(([key]) => key);
+
+  const data = STAGE_ORDER.map((stage) => {
+    const row = byStageMap.get(stage) || {};
+    const total = clientKeys.reduce((sum, key) => sum + (row[key] || 0), 0);
+    return { stage, label: STAGE_LABELS[stage], ...row, __total: total };
+  });
 
   return (
-    <ChartCard title="Production by process stage" subtitle="MT progressed per stage in the selected range">
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} margin={{ top: 20, right: 8, left: -16, bottom: 0 }}>
+    <ChartCard title="Production by process stage" subtitle="MT progressed per stage in the selected range, by client">
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={data} margin={{ top: 24, right: 8, left: -16, bottom: 0 }}>
           <CartesianGrid stroke="var(--gridline)" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--baseline)' }} tickLine={false} />
           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-          <Bar dataKey="total" fill={STAGE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={40}>
-            <LabelList dataKey="total" position="center" formatter={fmt} style={insideLabelStyle} />
-          </Bar>
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          {clientKeys.map((key, i) => (
+            <Bar
+              key={key}
+              dataKey={key}
+              name={key}
+              stackId="stage"
+              fill={CLIENT_COLORS[i % CLIENT_COLORS.length]}
+              maxBarSize={56}
+              radius={i === clientKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+            >
+              <LabelList dataKey={key} position="center" formatter={segmentFmt} style={insideLabelStyle} />
+              {i === clientKeys.length - 1 && (
+                <LabelList dataKey="__total" position="top" formatter={fmt} style={labelStyle} />
+              )}
+            </Bar>
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>

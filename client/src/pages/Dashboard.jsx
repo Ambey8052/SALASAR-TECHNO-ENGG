@@ -163,7 +163,7 @@ export function Dashboard() {
             <ManpowerTrendChart trend={summary.manpower.trend} />
             {productionAvailable && (
               <>
-                <ProductionStageChart byStage={summary.production.byStage} />
+                <ProductionStageChart byStageByClient={summary.production.byStageByClient} />
                 <ProductionTrendChart trend={summary.production.trend} />
                 <DispatchClientChart byClient={summary.dispatch.byClient} />
                 <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />

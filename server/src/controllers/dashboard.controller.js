@@ -85,16 +85,35 @@ async function getLatestFinalCoatByClient() {
 // column genuinely resets partway through their history (someone restarted the running
 // total), so any calculation based on cumulative differences quietly breaks for a date
 // range that straddles one of those resets, while a straight sum of daily figures does not.
+// Same per-stage totals as byStage, but split out per client too, so a stage's bar can be
+// colored by how much each client contributed to it.
+async function getStageByClient(from, to, client) {
+  const match = { date: { $gte: from, $lte: to }, ...(client ? { client } : {}) };
+  const rows = await ProductionRecord.aggregate([
+    { $match: match },
+    { $group: { _id: { stage: '$processStage', client: '$client' }, total: { $sum: '$dailyIncrementQty' } } },
+  ]);
+
+  const byStage = new Map();
+  for (const row of rows) {
+    const stage = row._id.stage;
+    if (!byStage.has(stage)) byStage.set(stage, { stage });
+    byStage.get(stage)[row._id.client] = row.total;
+  }
+  return [...byStage.values()];
+}
+
 async function getProductionSummary(from, to, client) {
   const match = { date: { $gte: from, $lte: to } };
   if (client) match.client = client;
   const { start: todayStart, end: todayEnd } = startEndOfToday();
 
-  const [byStage, byClient, trend, completedToday, completedInRange] = await Promise.all([
+  const [byStage, byStageByClient, byClient, trend, completedToday, completedInRange] = await Promise.all([
     ProductionRecord.aggregate([
       { $match: match },
       { $group: { _id: '$processStage', total: { $sum: '$dailyIncrementQty' } } },
     ]),
+    getStageByClient(from, to, client),
     ProductionRecord.aggregate([
       { $match: { ...match, processStage: 'finalCoat' } },
       { $group: { _id: '$client', total: { $sum: '$dailyIncrementQty' } } },
@@ -113,6 +132,7 @@ async function getProductionSummary(from, to, client) {
     completedToday,
     completedInRange,
     byStage: byStage.map((s) => ({ stage: s._id, total: s.total })),
+    byStageByClient,
     byClient: byClient.map((c) => ({ client: c._id, total: c.total })),
     trend: trend.map((t) => ({ date: t._id, total: t.total })),
   };
@@ -207,6 +227,7 @@ const UNAVAILABLE_PRODUCTION = {
   completedToday: null,
   completedInRange: null,
   byStage: [],
+  byStageByClient: [],
   byClient: [],
   trend: [],
 };
