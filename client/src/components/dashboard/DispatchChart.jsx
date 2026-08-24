@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { format } from 'date-fns';
+import { ChartModal, ExpandHint } from './ChartModal';
 
 const CLIENT_COLORS = ['var(--series-2)', 'var(--series-3)', 'var(--series-4)', 'var(--series-5)', 'var(--series-7)'];
 const OTHER_COLOR = 'var(--text-muted)';
@@ -9,9 +11,17 @@ const segmentFmt = (v) => (v ? Math.round(v * 10) / 10 : '');
 const segmentLabelStyle = { fill: '#ffffff', fontSize: 9, fontWeight: 600 };
 const insideLabelStyle = { fill: '#ffffff', fontSize: 11, fontWeight: 600 };
 
-function ChartCard({ title, subtitle, children }) {
+function ChartCard({ title, subtitle, onClick, children }) {
   return (
-    <div className="rounded-2xl border p-5" style={{ background: 'var(--surface-1)' }}>
+    <div
+      className={onClick ? 'group relative rounded-2xl border p-5 transition-shadow hover:shadow-md' : 'rounded-2xl border p-5'}
+      style={{ background: 'var(--surface-1)', cursor: onClick ? 'pointer' : undefined }}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => (e.key === 'Enter' || e.key === ' ') && onClick() : undefined}
+    >
+      {onClick && <ExpandHint />}
       <div className="mb-4">
         <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
           {title}
@@ -27,7 +37,65 @@ function ChartCard({ title, subtitle, children }) {
   );
 }
 
+const PX_PER_POINT = 48;
+
+function DispatchStackedChart({ data, clientKeys, colorFor, expanded }) {
+  const chart = (
+    <BarChart data={data} margin={{ top: 24, right: 8, left: expanded ? 0 : -16, bottom: 0 }}>
+      <CartesianGrid stroke="var(--gridline)" vertical={false} />
+      <XAxis
+        dataKey="date"
+        interval={expanded ? 0 : undefined}
+        tickFormatter={(d) => format(new Date(d), 'd MMM')}
+        tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+        axisLine={{ stroke: 'var(--baseline)' }}
+        tickLine={false}
+        angle={expanded ? -35 : 0}
+        textAnchor={expanded ? 'end' : 'middle'}
+        height={expanded ? 50 : 30}
+      />
+      <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
+      <Legend wrapperStyle={{ fontSize: 12 }} />
+      {clientKeys.map((key, i) => (
+        <Bar
+          key={key}
+          dataKey={key}
+          name={key}
+          stackId="dispatch"
+          fill={colorFor(i, key)}
+          maxBarSize={expanded ? 44 : 36}
+          radius={i === clientKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+        >
+          <LabelList dataKey={key} position="center" angle={-90} formatter={segmentFmt} style={segmentLabelStyle} />
+          {i === clientKeys.length - 1 && (
+            <LabelList dataKey="__total" position="top" formatter={fmt} style={labelStyle} />
+          )}
+        </Bar>
+      ))}
+    </BarChart>
+  );
+
+  if (!expanded) {
+    return (
+      <ResponsiveContainer width="100%" height={280}>
+        {chart}
+      </ResponsiveContainer>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: Math.max(data.length * PX_PER_POINT, 600) }}>
+        <ResponsiveContainer width="100%" height={460}>
+          {chart}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 export function DispatchTrendChart({ trendByClient, byClient }) {
+  const [expanded, setExpanded] = useState(false);
   const hasOther = trendByClient.some((t) => 'Other' in t);
   const clientKeys = [...byClient.map((c) => c.client), ...(hasOther ? ['Other'] : [])];
   const data = trendByClient.map((t) => ({
@@ -36,52 +104,32 @@ export function DispatchTrendChart({ trendByClient, byClient }) {
     __total: clientKeys.reduce((sum, key) => sum + (t[key] || 0), 0),
   }));
   const colorFor = (i, key) => (key === 'Other' ? OTHER_COLOR : CLIENT_COLORS[i % CLIENT_COLORS.length]);
+  const empty = data.length === 0;
 
   return (
-    <ChartCard title="Dispatch, day by day" subtitle="Quantity dispatched per day in the selected range, by client">
-      {data.length === 0 ? (
-        <div className="flex h-[220px] items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
-          No dispatches recorded yet in this range
-        </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={data} margin={{ top: 24, right: 8, left: -16, bottom: 0 }}>
-            <CartesianGrid stroke="var(--gridline)" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickFormatter={(d) => format(new Date(d), 'd MMM')}
-              tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-              axisLine={{ stroke: 'var(--baseline)' }}
-              tickLine={false}
-            />
-            <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            {clientKeys.map((key, i) => (
-              <Bar
-                key={key}
-                dataKey={key}
-                name={key}
-                stackId="dispatch"
-                fill={colorFor(i, key)}
-                maxBarSize={36}
-                radius={i === clientKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-              >
-                <LabelList
-                  dataKey={key}
-                  position="center"
-                  angle={-90}
-                  formatter={segmentFmt}
-                  style={segmentLabelStyle}
-                />
-                {i === clientKeys.length - 1 && (
-                  <LabelList dataKey="__total" position="top" formatter={fmt} style={labelStyle} />
-                )}
-              </Bar>
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      )}
-    </ChartCard>
+    <>
+      <ChartCard
+        title="Dispatch, day by day"
+        subtitle="Quantity dispatched per day in the selected range, by client"
+        onClick={empty ? undefined : () => setExpanded(true)}
+      >
+        {empty ? (
+          <div className="flex h-[220px] items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
+            No dispatches recorded yet in this range
+          </div>
+        ) : (
+          <DispatchStackedChart data={data} clientKeys={clientKeys} colorFor={colorFor} expanded={false} />
+        )}
+      </ChartCard>
+      <ChartModal
+        title="Dispatch, day by day"
+        subtitle="Every day in the selected range, by client"
+        isOpen={expanded}
+        onClose={() => setExpanded(false)}
+      >
+        <DispatchStackedChart data={data} clientKeys={clientKeys} colorFor={colorFor} expanded />
+      </ChartModal>
+    </>
   );
 }
 
