@@ -58,3 +58,8 @@ export async function deleteTarget(client) {
   const { data } = await api.delete(`/targets/${encodeURIComponent(client)}`);
   return data;
 }
+
+export async function sendReportEmail({ to, cc, subject, bodyHtml }) {
+  const { data } = await api.post('/email/send', { to, cc, subject, bodyHtml }, { timeout: 60_000 });
+  return data;
+}

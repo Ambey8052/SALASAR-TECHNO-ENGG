@@ -20,3 +20,13 @@ export function requireAdmin(req, res, next) {
   }
   next();
 }
+
+export function requireEmail(allowedEmail) {
+  const normalized = allowedEmail?.toLowerCase();
+  return (req, res, next) => {
+    if (!normalized || req.user?.email?.toLowerCase() !== normalized) {
+      return res.status(403).json({ error: 'Not authorized for this action' });
+    }
+    next();
+  };
+}

@@ -34,4 +34,7 @@ export const env = {
   syncIntervalMinutes: Number(process.env.SYNC_INTERVAL_MINUTES || 10),
 
   geminiApiKey: process.env.GEMINI_API_KEY || null,
+
+  emailUser: process.env.EMAIL_USER || null,
+  emailAppPassword: (process.env.EMAIL_APP_PASSWORD || '').replace(/\s+/g, '') || null,
 };

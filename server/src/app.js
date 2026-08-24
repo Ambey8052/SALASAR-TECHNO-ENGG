@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import syncRoutes from './routes/sync.routes.js';
 import targetRoutes from './routes/target.routes.js';
+import emailRoutes from './routes/email.routes.js';
 
 export const app = express();
 
@@ -16,6 +17,9 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors({ origin: env.clientOrigin, credentials: true }));
+// The email-compose body can carry a few inline images as base64 data URLs, so it gets a
+// much larger limit than the rest of the API, which stays on the small default.
+app.use('/api/email', express.json({ limit: '20mb' }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(mongoSanitize());
@@ -42,6 +46,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/targets', targetRoutes);
+app.use('/api/email', emailRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
