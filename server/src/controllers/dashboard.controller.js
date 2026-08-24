@@ -117,12 +117,31 @@ async function getStageByClient(from, to, client) {
   return [...byStage.values()];
 }
 
+// Final-coat completions per day, split out per client, for the two-(or three-)line
+// completions trend chart — same reshape pattern as getStageByClient/getDispatchTrendByClient.
+async function getFinalCoatTrendByClient(from, to, client) {
+  const match = { date: { $gte: from, $lte: to }, processStage: 'finalCoat', ...(client ? { client } : {}) };
+  const rows = await ProductionRecord.aggregate([
+    { $match: match },
+    { $group: { _id: { date: '$date', client: '$client' }, total: { $sum: '$dailyIncrementQty' } } },
+    { $sort: { '_id.date': 1 } },
+  ]);
+
+  const byDate = new Map();
+  for (const row of rows) {
+    const key = row._id.date.toISOString();
+    if (!byDate.has(key)) byDate.set(key, { date: row._id.date });
+    byDate.get(key)[row._id.client] = row.total;
+  }
+  return [...byDate.values()].sort((a, b) => a.date - b.date);
+}
+
 async function getProductionSummary(from, to, client) {
   const match = { date: { $gte: from, $lte: to } };
   if (client) match.client = client;
   const { start: todayStart, end: todayEnd } = startEndOfToday();
 
-  const [byStage, byStageByClient, byClient, trend, completedToday, completedInRange] = await Promise.all([
+  const [byStage, byStageByClient, byClient, trend, trendByClient, completedToday, completedInRange] = await Promise.all([
     ProductionRecord.aggregate([
       { $match: match },
       { $group: { _id: '$processStage', total: { $sum: '$dailyIncrementQty' } } },
@@ -138,6 +157,7 @@ async function getProductionSummary(from, to, client) {
       { $group: { _id: '$date', total: { $sum: '$dailyIncrementQty' } } },
       { $sort: { _id: 1 } },
     ]),
+    getFinalCoatTrendByClient(from, to, client),
     sumFinalCoatIncrement(todayStart, todayEnd, client),
     sumFinalCoatIncrement(from, to, client),
   ]);
@@ -149,6 +169,7 @@ async function getProductionSummary(from, to, client) {
     byStageByClient,
     byClient: byClient.map((c) => ({ client: c._id, total: c.total })),
     trend: trend.map((t) => ({ date: t._id, total: t.total })),
+    trendByClient,
   };
 }
 
@@ -244,6 +265,7 @@ const UNAVAILABLE_PRODUCTION = {
   byStageByClient: [],
   byClient: [],
   trend: [],
+  trendByClient: [],
 };
 
 const UNAVAILABLE_DISPATCH = {

@@ -164,7 +164,7 @@ export function Dashboard() {
             {productionAvailable && (
               <>
                 <ProductionStageChart byStageByClient={summary.production.byStageByClient} />
-                <ProductionTrendChart trend={summary.production.trend} />
+                <ProductionTrendChart trendByClient={summary.production.trendByClient} byClient={summary.production.byClient} />
                 <DispatchClientChart byClient={summary.dispatch.byClient} />
                 <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />
               </>

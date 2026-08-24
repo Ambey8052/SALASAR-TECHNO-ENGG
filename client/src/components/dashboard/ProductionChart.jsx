@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Cell, AreaChart, Area, LabelList } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { format } from 'date-fns';
 import { ChartModal, ExpandHint } from './ChartModal';
 
@@ -48,15 +48,9 @@ function ChartCard({ title, subtitle, onClick, children }) {
 
 const PX_PER_POINT = 42;
 
-function ProductionAreaChart({ data, expanded }) {
+function ProductionLineChart({ data, clientKeys, expanded }) {
   const chart = (
-    <AreaChart data={data} margin={{ top: 20, right: 8, left: expanded ? 0 : -16, bottom: 0 }}>
-      <defs>
-        <linearGradient id="productionFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--series-3)" stopOpacity={0.25} />
-          <stop offset="100%" stopColor="var(--series-3)" stopOpacity={0} />
-        </linearGradient>
-      </defs>
+    <LineChart data={data} margin={{ top: 20, right: 8, left: expanded ? 0 : -16, bottom: 0 }}>
       <CartesianGrid stroke="var(--gridline)" vertical={false} />
       <XAxis
         dataKey="date"
@@ -70,10 +64,25 @@ function ProductionAreaChart({ data, expanded }) {
         height={expanded ? 50 : 30}
       />
       <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-      <Area type="monotone" dataKey="total" stroke="var(--series-3)" strokeWidth={2} fill="url(#productionFill)" dot={{ r: 3, fill: 'var(--series-3)', strokeWidth: 0 }}>
-        <LabelList dataKey="total" position="top" formatter={fmt} style={labelStyle} />
-      </Area>
-    </AreaChart>
+      <Legend wrapperStyle={{ fontSize: 12 }} />
+      {clientKeys.map((key, i) => {
+        const color = CLIENT_COLORS[i % CLIENT_COLORS.length];
+        return (
+          <Line
+            key={key}
+            type="monotone"
+            dataKey={key}
+            name={key}
+            stroke={color}
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: color, strokeWidth: 0 }}
+            connectNulls
+          >
+            <LabelList dataKey={key} position={i % 2 === 0 ? 'top' : 'bottom'} formatter={fmt} style={{ fill: color, fontSize: 10, fontWeight: 600 }} />
+          </Line>
+        );
+      })}
+    </LineChart>
   );
 
   if (!expanded) {
@@ -95,16 +104,23 @@ function ProductionAreaChart({ data, expanded }) {
   );
 }
 
-export function ProductionTrendChart({ trend }) {
+export function ProductionTrendChart({ trendByClient, byClient }) {
   const [expanded, setExpanded] = useState(false);
-  const data = trend.map((t) => ({ date: t.date, total: t.total }));
+  const clientKeys = byClient.map((c) => c.client);
+  const data = trendByClient.map((t) => {
+    const row = { date: t.date };
+    clientKeys.forEach((key) => {
+      row[key] = t[key] ?? 0;
+    });
+    return row;
+  });
   const empty = data.length === 0;
 
   return (
     <>
       <ChartCard
         title="Final-coat completions, day by day"
-        subtitle="MT completed per day in the selected range"
+        subtitle="MT completed per day, by client, in the selected range"
         onClick={empty ? undefined : () => setExpanded(true)}
       >
         {empty ? (
@@ -112,16 +128,16 @@ export function ProductionTrendChart({ trend }) {
             No completions recorded yet in this range
           </div>
         ) : (
-          <ProductionAreaChart data={data} expanded={false} />
+          <ProductionLineChart data={data} clientKeys={clientKeys} expanded={false} />
         )}
       </ChartCard>
       <ChartModal
         title="Final-coat completions, day by day"
-        subtitle="Every day in the selected range"
+        subtitle="By client — every day in the selected range"
         isOpen={expanded}
         onClose={() => setExpanded(false)}
       >
-        <ProductionAreaChart data={data} expanded />
+        <ProductionLineChart data={data} clientKeys={clientKeys} expanded />
       </ChartModal>
     </>
   );
