@@ -77,6 +77,7 @@ export async function getCurrentUser(req, res) {
     name: user.name,
     picture: user.picture,
     role: user.role,
+    title: user.title,
   });
 }
 

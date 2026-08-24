@@ -6,6 +6,8 @@ import { Navbar } from './components/layout/Navbar';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Settings } from './pages/Settings';
+import { Email } from './pages/Email';
+import { PC_HSD_EMAIL } from './lib/constants';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -43,6 +45,16 @@ export default function App() {
                 <ProtectedRoute adminOnly>
                   <AppShell>
                     <Settings />
+                  </AppShell>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/email"
+              element={
+                <ProtectedRoute allowedEmails={[PC_HSD_EMAIL]}>
+                  <AppShell>
+                    <Email />
                   </AppShell>
                 </ProtectedRoute>
               }

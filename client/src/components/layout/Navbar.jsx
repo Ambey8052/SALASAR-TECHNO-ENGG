@@ -1,11 +1,17 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import { PC_HSD_EMAIL } from '../../lib/constants';
 
 const links = [
   { to: '/', label: 'Dashboard' },
   { to: '/settings', label: 'Settings', adminOnly: true },
+  { to: '/email', label: 'Email', allowedEmails: [PC_HSD_EMAIL] },
 ];
+
+const DISPLAY_NAME_OVERRIDES = {
+  [PC_HSD_EMAIL]: 'Process Coordinator',
+};
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -31,6 +37,7 @@ export function Navbar() {
         <nav className="flex items-center gap-1">
           {links
             .filter((l) => !l.adminOnly || user?.role === 'admin')
+            .filter((l) => !l.allowedEmails || l.allowedEmails.includes(user?.email))
             .map((link) => (
               <NavLink
                 key={link.to}
@@ -56,10 +63,10 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           <div className="text-right leading-tight">
             <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              {user.name}
+              {DISPLAY_NAME_OVERRIDES[user.email] || user.name}
             </div>
             <div className="text-xs capitalize" style={{ color: 'var(--text-muted)' }}>
-              {user.role}
+              {user.title || user.role}
             </div>
           </div>
           {user.picture ? (

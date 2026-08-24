@@ -11,6 +11,8 @@ import { DispatchTrendChart, DispatchClientChart } from '../components/dashboard
 import { InsightsPanel } from '../components/dashboard/InsightsPanel';
 import { SyncStatusBadge } from '../components/dashboard/SyncStatusBadge';
 import { useSyncSocket } from '../hooks/useSyncSocket';
+import { useAuth } from '../context/AuthContext';
+import { PC_HSD_EMAIL } from '../lib/constants';
 
 const UNIT_LABEL = { HSD: 'HSD', BU: 'Bhilai' };
 
@@ -19,6 +21,7 @@ export function Dashboard() {
   const [range, setRange] = useState(PRESETS[3].getRange());
   const [businessUnit, setBusinessUnit] = useState('HSD');
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const params = {
     from: format(range.from, 'yyyy-MM-dd'),
@@ -66,7 +69,7 @@ export function Dashboard() {
             {formatRangeLabel(range)}
           </p>
         </div>
-        <SyncStatusBadge status={syncStatusQuery.data} onSynced={handleSynced} />
+        {user?.email !== PC_HSD_EMAIL && <SyncStatusBadge status={syncStatusQuery.data} onSynced={handleSynced} />}
       </div>
 
       <div className="mb-6">
