@@ -186,9 +186,22 @@ function RecipientField({ label, values, onChange, placeholder, disabled }) {
   );
 }
 
+const DEFAULT_TO = ['amit.ojha@salasartechno.com', 'kunal.kumar@salasartechno.com'];
+
+const DEFAULT_CC = [
+  'bharat.agarwal@salasartechno.com',
+  'shashank.agarwal@salasartechno.com',
+  'shalabh.agarwal@salasartechno.com',
+  'dhruv.agarwal@salasartechno.com',
+  'bhanu.pratap1@salasartechno.com',
+  'ea.hsd@salasartechno.com',
+  'amit.pathak@salasartechno.com',
+  'pc.gi@salasartechno.com',
+];
+
 export function Email() {
-  const [to, setTo] = useState(['ambeydeep8052@gmail.com']);
-  const [cc, setCc] = useState(['ea.hsd@salasartechno.com']);
+  const [to, setTo] = useState(DEFAULT_TO);
+  const [cc, setCc] = useState(DEFAULT_CC);
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [status, setStatus] = useState('idle'); // idle | sending | sent | error
   const [errorMessage, setErrorMessage] = useState('');
