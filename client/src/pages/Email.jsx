@@ -36,11 +36,12 @@ function workerRowHtml(number, sample) {
 }
 
 const SAMPLE_WORKERS = [
-  '[ Worker Name ] (Project- ___ - Tasks)',
-  'Jagdeesh Kumar (Project- Solar, Swage Pole - Tacking, Welding, Rolling, Punching, Cutting)',
+  'Ajay Panwar (Project- Indus GBM Swage Pole- Punching,Swaging,Drilling,Welding)',
+  'Jagdeesh Kumar (Project- Solar,Indus GBM- Tacking,Welding)',
   'Ram Milan (Project- Indus GBM - Welding, Rolling, Tacking)',
-  'Sunil Tomar (Project- Solar - Rolling)',
-  'Bharat Rai (Project- Solar - Punching, Welding, Tacking, Cutting)',
+  'Sunil Tomar (Project- Solar- Rolling,Punching)',
+  'Vishal (Project- Swage Pole,Solar,Indus GBM- Punching,Rolling,Drilling,Welding,Tacking)',
+  'Bharat Rai (Project-Swage Pole,Solar- Punching,Rolling,Drilling,Welding,Tacking,Binding)',
 ];
 
 const SIGNATURE_HTML = `
@@ -77,9 +78,13 @@ const DEFAULT_BODY = `
   ${uploadBoxHtml()}
   ${reportLineHtml('<strong>2. Full department performance,</strong>')}
   ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>3. Supervisor performance</strong>')}
   <div id="worker-list">
     ${SAMPLE_WORKERS.map((w, i) => workerRowHtml(i + 1, w)).join('\n')}
   </div>
+  <p style="margin-top:16px;">This is for your record and progress.</p>
+  <p>Kindly get in touch if any support is needed.</p>
+  <p>Thanks and Regards,</p>
   ${SIGNATURE_HTML}
 `;
 
@@ -281,9 +286,18 @@ export function Email() {
     if (file && box) applyImageToBox(box, file);
   }
 
+  // The pencil edit-icons are a compose-time affordance only — strip them (on a detached
+  // clone, so the live compose view is untouched) before this HTML goes out to recipients.
+  function getOutgoingBodyHtml() {
+    if (!bodyRef.current) return '';
+    const clone = bodyRef.current.cloneNode(true);
+    clone.querySelectorAll('[data-edit-line]').forEach((el) => el.remove());
+    return clone.innerHTML;
+  }
+
   async function handleSend(e) {
     e.preventDefault();
-    const bodyHtml = bodyRef.current?.innerHTML || '';
+    const bodyHtml = getOutgoingBodyHtml();
     if (to.length === 0) {
       setStatus('error');
       setErrorMessage('Add at least one "To" recipient.');
