@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { sendReport } from '../controllers/email.controller.js';
+import { sendReport, scheduleReport, listScheduledEmails, cancelScheduledEmail } from '../controllers/email.controller.js';
 import { requireAuth, requireEmail } from '../middleware/auth.js';
 import { env } from '../config/env.js';
 
@@ -14,6 +14,11 @@ const sendLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-router.post('/send', requireAuth, requireEmail(env.emailUser), sendLimiter, sendReport);
+const restricted = [requireAuth, requireEmail(env.emailUser)];
+
+router.post('/send', ...restricted, sendLimiter, sendReport);
+router.post('/schedule', ...restricted, sendLimiter, scheduleReport);
+router.get('/scheduled', ...restricted, listScheduledEmails);
+router.delete('/scheduled/:id', ...restricted, cancelScheduledEmail);
 
 export default router;

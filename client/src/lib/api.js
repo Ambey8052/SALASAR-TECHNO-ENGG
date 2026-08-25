@@ -63,3 +63,18 @@ export async function sendReportEmail({ to, cc, subject, bodyHtml }) {
   const { data } = await api.post('/email/send', { to, cc, subject, bodyHtml }, { timeout: 60_000 });
   return data;
 }
+
+export async function scheduleReportEmail({ to, cc, subject, bodyHtml, sendAt }) {
+  const { data } = await api.post('/email/schedule', { to, cc, subject, bodyHtml, sendAt }, { timeout: 60_000 });
+  return data;
+}
+
+export async function fetchScheduledEmails() {
+  const { data } = await api.get('/email/scheduled');
+  return data;
+}
+
+export async function cancelScheduledEmail(id) {
+  const { data } = await api.delete(`/email/scheduled/${id}`);
+  return data;
+}
