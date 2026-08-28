@@ -1,10 +1,20 @@
 import { useState } from 'react';
 import { EmailComposer } from '../components/email/EmailComposer';
-import { ZETWERK_SUBJECT, ZETWERK_TO, ZETWERK_CC, ZETWERK_BODY, CNC_SUBJECT, CNC_BODY } from '../components/email/emailTemplates';
+import {
+  ZETWERK_SUBJECT,
+  ZETWERK_TO,
+  ZETWERK_CC,
+  ZETWERK_BODY,
+  CNC_SUBJECT,
+  CNC_BODY,
+  HSD_MACHINE_SUBJECT,
+  HSD_MACHINE_BODY,
+} from '../components/email/emailTemplates';
 
 const REPORTS = {
   zetwerk: { label: 'Zetwerk', subject: ZETWERK_SUBJECT, to: ZETWERK_TO, cc: ZETWERK_CC, body: ZETWERK_BODY },
   cnc: { label: 'CNC', subject: CNC_SUBJECT, to: [], cc: [], body: CNC_BODY },
+  hsdMachine: { label: 'HSD-(Machine)', subject: HSD_MACHINE_SUBJECT, to: [], cc: [], body: HSD_MACHINE_BODY },
 };
 
 const FOCUS_RING = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--series-1)]';

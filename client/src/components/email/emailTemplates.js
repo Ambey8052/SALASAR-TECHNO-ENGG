@@ -140,3 +140,39 @@ export const CNC_BODY = `
   ${CLOSING_HTML('Regards,')}
   ${SIGNATURE_HTML}
 `;
+
+// --- HSD-(Machine) weekly report -----------------------------------------------------------
+
+export const HSD_MACHINE_SUBJECT = 'Weekly HSD Machine MIS and Department Performance Report - Week 34 from (17-08-26) to (23-08-26)';
+
+const HSD_MACHINE_OPERATORS = [
+  'Deepak puri (Operator- TRINKLE)',
+  'Jeelajeet Singh (Operator- MARK HYD.)',
+  'Kant Rajput (Operator- MARK HYD)',
+  'Shiva Tomar (Operator- PRO ARC)',
+  'Vivek Tyagi (Operator- TRINKLE)',
+  'Deepak Dhama (Operator- CORIMPEX)',
+  'Upender Ray (Operator- CORIMPEX)',
+  'Neeraj Kuamr (Operator- PRO ARC)',
+  'Abhishek Kumar Sharma (Asst. Operator- PRO ARC)',
+];
+
+export const HSD_MACHINE_BODY = `
+  <p>Dear Machine Department Head,</p>
+  <p>Please find attached the Weekly performance report for your department, please check and review,</p>
+  ${reportLineHtml('<strong>1. MIS Machine Department Report,</strong>', 'margin-top:12px;')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>2. Full department performance.</strong>')}
+  ${uploadBoxHtml()}
+  <p style="margin:4px 0 0;font-size:12.5px;font-style:italic;color:var(--text-muted);">* Kindly read "DRILLING" Index as (1 unit showed = 100 units done)</p>
+  ${reportLineHtml('<strong>3. MIS CNC Machine Report,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>4. CNC Machine department performance,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>5. Supervisor wise performance,</strong>')}
+  <div id="worker-list">
+    ${HSD_MACHINE_OPERATORS.map((w, i) => workerRowHtml(i + 1, w)).join('\n')}
+  </div>
+  ${CLOSING_HTML('Regards,')}
+  ${SIGNATURE_HTML}
+`;
