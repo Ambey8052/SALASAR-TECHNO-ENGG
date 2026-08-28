@@ -9,12 +9,18 @@ import {
   CNC_BODY,
   HSD_MACHINE_SUBJECT,
   HSD_MACHINE_BODY,
+  HSD_PAINTING_SUBJECT,
+  HSD_PAINTING_BODY,
+  HSD_QUALITY_SUBJECT,
+  HSD_QUALITY_BODY,
 } from '../components/email/emailTemplates';
 
 const REPORTS = {
   zetwerk: { label: 'Zetwerk', subject: ZETWERK_SUBJECT, to: ZETWERK_TO, cc: ZETWERK_CC, body: ZETWERK_BODY },
   cnc: { label: 'CNC', subject: CNC_SUBJECT, to: [], cc: [], body: CNC_BODY },
   hsdMachine: { label: 'HSD-(Machine)', subject: HSD_MACHINE_SUBJECT, to: [], cc: [], body: HSD_MACHINE_BODY },
+  hsdPainting: { label: 'HSD-(Painting)', subject: HSD_PAINTING_SUBJECT, to: [], cc: [], body: HSD_PAINTING_BODY },
+  hsdQuality: { label: 'HSD-(Quality)', subject: HSD_QUALITY_SUBJECT, to: [], cc: [], body: HSD_QUALITY_BODY },
 };
 
 const FOCUS_RING = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--series-1)]';
@@ -29,7 +35,7 @@ export function Email() {
         Email
       </h1>
 
-      <div className="mb-4 flex gap-1 rounded-xl border p-1" style={{ background: 'var(--surface-1)', width: 'fit-content' }} role="tablist" aria-label="Report type">
+      <div className="mb-4 flex max-w-full flex-wrap gap-1 rounded-xl border p-1" style={{ background: 'var(--surface-1)', width: 'fit-content' }} role="tablist" aria-label="Report type">
         {Object.entries(REPORTS).map(([key, { label }]) => (
           <button
             key={key}

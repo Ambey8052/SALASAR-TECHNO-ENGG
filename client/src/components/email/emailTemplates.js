@@ -176,3 +176,56 @@ export const HSD_MACHINE_BODY = `
   ${CLOSING_HTML('Regards,')}
   ${SIGNATURE_HTML}
 `;
+
+// --- HSD-(Painting) weekly report -----------------------------------------------------------
+
+export const HSD_PAINTING_SUBJECT = 'Weekly HSD Painting MIS and Department Performance Report - Week 34 from (17-08-26) to (23-08-26)';
+
+const HSD_PAINTING_WORKERS = [
+  'Anuj Kumar (Project- Adani)',
+  'Sadanand (Project- Adani)',
+  'Adarsh (Project- Adani)',
+];
+
+export const HSD_PAINTING_BODY = `
+  <p>Dear Painting and Blasting Head,</p>
+  <p>Please find attached the Weekly performance report for your department, please check and review,</p>
+  ${reportLineHtml('<strong>1. MIS Painting Department Report,</strong>', 'margin-top:12px;')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>2. Full department performance,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>3. Supervisor wise performance,</strong>')}
+  <div id="worker-list">
+    ${HSD_PAINTING_WORKERS.map((w, i) => workerRowHtml(i + 1, w)).join('\n')}
+  </div>
+  ${CLOSING_HTML('Regards,')}
+  ${SIGNATURE_HTML}
+`;
+
+// --- HSD-(Quality) weekly report -------------------------------------------------------------
+
+export const HSD_QUALITY_SUBJECT = 'Weekly HSD Quality MIS and Department Performance Report - Week 34 from (17-08-26) to (23-08-26)';
+
+const HSD_QUALITY_WORKERS = [
+  'Rajneesh Kumar (Project -Adani,L&T MHI)',
+  'Krishnkant Singh (Project - Adani,L&T MHI)',
+  'Parameshvar Mishra (Project - Adani,L&T MHI)',
+  'Vikash Tomar (Project - Adani)',
+  'Deepanshu (Project - Adani)',
+  'Akhand Pratap Singh (Project - Adani,L&T MHI)',
+];
+
+export const HSD_QUALITY_BODY = `
+  <p>Dear Quality Head,</p>
+  <p>Please find attached the Weekly performance report for your department, please check and review,</p>
+  ${reportLineHtml('<strong>1. MIS Quality Department report,</strong>', 'margin-top:12px;')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>2. Full department performance.</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>3. Supervisor wise performance</strong>')}
+  <div id="worker-list">
+    ${HSD_QUALITY_WORKERS.map((w, i) => workerRowHtml(i + 1, w)).join('\n')}
+  </div>
+  ${CLOSING_HTML('Regards,')}
+  ${SIGNATURE_HTML}
+`;
