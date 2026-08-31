@@ -13,6 +13,8 @@ import {
   HSD_PAINTING_BODY,
   HSD_QUALITY_SUBJECT,
   HSD_QUALITY_BODY,
+  RAMBOLL_SUBJECT,
+  RAMBOLL_BODY,
 } from '../components/email/emailTemplates';
 
 const REPORTS = {
@@ -21,6 +23,7 @@ const REPORTS = {
   hsdMachine: { label: 'HSD-(Machine)', subject: HSD_MACHINE_SUBJECT, to: [], cc: [], body: HSD_MACHINE_BODY },
   hsdPainting: { label: 'HSD-(Painting)', subject: HSD_PAINTING_SUBJECT, to: [], cc: [], body: HSD_PAINTING_BODY },
   hsdQuality: { label: 'HSD-(Quality)', subject: HSD_QUALITY_SUBJECT, to: [], cc: [], body: HSD_QUALITY_BODY },
+  ramboll: { label: 'Ramboll', subject: RAMBOLL_SUBJECT, to: [], cc: [], body: RAMBOLL_BODY },
 };
 
 const FOCUS_RING = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--series-1)]';

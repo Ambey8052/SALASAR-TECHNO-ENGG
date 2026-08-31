@@ -31,17 +31,29 @@ export function workerRowHtml(number, sample) {
   return `${reportLineHtml(`${number}. ${sample}`, 'margin:10px 0 0;')}${uploadBoxHtml()}`;
 }
 
-export const SIGNATURE_HTML = `
+// Same shape as workerRowHtml, but for reports whose supervisor entries are already fully
+// labelled (e.g. "(i). Birendra Kumar Pal (Welding)") rather than needing an auto-number.
+export function subItemHtml(label) {
+  return `${reportLineHtml(label, 'margin:10px 0 0;')}${uploadBoxHtml()}`;
+}
+
+// The signature text is just body content — who it names has no bearing on which mailbox
+// actually sends the message (that's always pc.hsd@salasartechno.com, the only account this
+// feature has credentials for). Parametrized so a report can carry a different coordinator's
+// signature (e.g. Ramboll's is signed by the GI coordinator) while everything else about the
+// company block (logo, address, website, ISO banner) stays identical.
+export function buildSignatureHtml({ name, title, phone, email }) {
+  return `
   <div id="email-signature" contenteditable="false" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--baseline);">
     <table style="border-collapse:collapse;"><tr>
       <td style="vertical-align:top;padding-right:16px;">
         <img src="/salasar-bg.png" alt="Salasar Techno Engineering Ltd." style="height:56px;width:auto;display:block;" />
       </td>
       <td style="vertical-align:top;border-left:2px solid #dc1f2b;padding-left:16px;font-size:13px;line-height:1.5;color:var(--text-primary);">
-        <div style="font-weight:700;">Vikrant Kumar</div>
-        <div style="color:var(--text-secondary);">Process Coordinator - Heavy Structure Division</div>
-        <div style="margin-top:4px;">+91 6397595412</div>
-        <div><a href="mailto:pc.hsd@salasartechno.com" style="color:var(--series-1);">pc.hsd@salasartechno.com</a></div>
+        <div style="font-weight:700;">${name}</div>
+        <div style="color:var(--text-secondary);">${title}</div>
+        <div style="margin-top:4px;">${phone}</div>
+        <div><a href="mailto:${email}" style="color:var(--series-1);">${email}</a></div>
         <div style="margin-top:4px;color:var(--text-secondary);">Khasra No - 686/6, Village - Khera, P.O. Pilkhuwa, District Hapur (UP) Pin - 245304, India,</div>
         <div><a href="https://www.salasartechno.com" style="color:var(--series-1);">www.salasartechno.com</a></div>
         <div style="margin-top:8px;">
@@ -57,6 +69,21 @@ export const SIGNATURE_HTML = `
     </div>
   </div>
 `;
+}
+
+export const SIGNATURE_HTML = buildSignatureHtml({
+  name: 'Vikrant Kumar',
+  title: 'Process Coordinator - Heavy Structure Division',
+  phone: '+91 6397595412',
+  email: 'pc.hsd@salasartechno.com',
+});
+
+const RAMBOLL_SIGNATURE_HTML = buildSignatureHtml({
+  name: 'Vivek Saini',
+  title: 'Process Coordinator - GI',
+  phone: '+91 8439991501',
+  email: 'pc.gi@salasartechno.com',
+});
 
 const CLOSING_HTML = (regardsLine) => `
   <p style="margin-top:16px;">This is for your record and progress.</p>
@@ -228,4 +255,46 @@ export const HSD_QUALITY_BODY = `
   </div>
   ${CLOSING_HTML('Regards,')}
   ${SIGNATURE_HTML}
+`;
+
+// --- Ramboll weekly report ---------------------------------------------------------------
+// Signed by the GI process coordinator (Vivek Saini), not HSD's — see buildSignatureHtml.
+
+export const RAMBOLL_SUBJECT = 'Weekly Ramboll (Unit-2) MIS and Department Performance report - Week 35 from (24-08-26) to (30-08-26)';
+
+const RAMBOLL_PRODUCTION_SUPERVISORS = [
+  '(i). Birendra Kumar Pal (Welding)',
+  '(ii). Ajay (Cutting)',
+  '(iii). Randhir Giri (Bracing,Ladder)',
+  '(iv). Vishal Thakur (Taking)',
+];
+
+const RAMBOLL_QUALITY_SUPERVISORS = [
+  '(i). Ranjeet (Welding Inspection)',
+  '(ii). Vinod Gupta (Taking Inspection)',
+  '(iii) Mayank (Bracing)',
+  '(iv) Mohit (Ladder)',
+];
+
+export const RAMBOLL_BODY = `
+  <p>Dear sir,</p>
+  <p>Please find attached the Weekly performance for your department, please check and review,</p>
+  ${reportLineHtml('<strong>1. MIS Production Department Report,</strong>', 'margin-top:12px;')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>2. Production Department Performance,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>3. Supervisor performance,</strong>')}
+  <div>
+    ${RAMBOLL_PRODUCTION_SUPERVISORS.map(subItemHtml).join('\n')}
+  </div>
+  ${reportLineHtml('<strong>4. MIS Quality Department Report,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>5. Quality Department Performance,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>6. Supervisor performance,</strong>')}
+  <div>
+    ${RAMBOLL_QUALITY_SUPERVISORS.map(subItemHtml).join('\n')}
+  </div>
+  ${CLOSING_HTML('Thanks and Regards')}
+  ${RAMBOLL_SIGNATURE_HTML}
 `;
