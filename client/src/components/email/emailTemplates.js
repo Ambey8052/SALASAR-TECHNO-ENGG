@@ -284,6 +284,43 @@ export const HSD_QUALITY_BODY = `
   ${SIGNATURE_HTML}
 `;
 
+// --- COW weekly report ---------------------------------------------------------------------
+
+export const COW_SUBJECT = 'Weekly COW MIS and Department Performance Report - Week 33 from (10-08-26) to (16-08-26)';
+
+const COW_PRODUCTION_SUPERVISORS = [
+  'Monu Sharma (Project- COW Tower - Shifting)',
+  'Shailender Ray (Project- Cow Tower ST-07 - Tacking,Welding)',
+  'Munkd Ali (Project- Cow Tower ST-01 - Welding,Tacking,Visual)',
+];
+
+const COW_QUALITY_SUPERVISORS = [
+  'Parveen Kumar (Project- Cow Tower - Tacking Insp,Welding Insp.)',
+];
+
+export const COW_BODY = `
+  <p>Dear Sir,</p>
+  <p>Please find attached the Weekly performance for your department, please check and review,</p>
+  ${reportLineHtml('<strong>1. MIS Production Department Report,</strong>', 'margin-top:12px;')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>2. Production Department Performance,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>3. Supervisor performance,</strong>')}
+  <div id="worker-list">
+    ${COW_PRODUCTION_SUPERVISORS.map((w, i) => workerRowHtml(i + 1, w)).join('\n')}
+  </div>
+  ${reportLineHtml('<strong>4. MIS Quality Department Report,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>5. Quality Department Performance,</strong>')}
+  ${uploadBoxHtml()}
+  ${reportLineHtml('<strong>6. Supervisor performance,</strong>')}
+  <div>
+    ${COW_QUALITY_SUPERVISORS.map((w, i) => workerRowHtml(i + 1, w)).join('\n')}
+  </div>
+  ${CLOSING_HTML('Thanks and Regards,')}
+  ${SIGNATURE_HTML}
+`;
+
 // --- Ramboll weekly report ---------------------------------------------------------------
 // Signed by the GI process coordinator (Vivek Saini), not HSD's — see buildSignatureHtml.
 
