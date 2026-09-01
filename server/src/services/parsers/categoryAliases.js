@@ -28,6 +28,12 @@ export function normalizeManpowerLabel(rawLabel) {
 }
 
 export function detectShiftLabel(rawLabel) {
+  if (typeof rawLabel === 'number') {
+    // The "12.30" shift sub-header is stored as a raw Excel time-of-day serial (a fraction
+    // of a day) rather than text — 12:30 PM = 12.5 / 24 ≈ 0.5208333.
+    if (rawLabel > 0 && rawLabel < 1 && Math.abs(rawLabel * 24 - 12.5) < 0.02) return 'mid';
+    return null;
+  }
   if (typeof rawLabel !== 'string' || !rawLabel.trim()) return null;
   return SHIFT_PATTERNS.find((p) => p.pattern.test(rawLabel))?.shift ?? null;
 }

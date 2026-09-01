@@ -163,30 +163,36 @@ export function ProductionStageChart({ byStageByClient }) {
 
   return (
     <ChartCard title="Production by process stage" subtitle="MT progressed per stage in the selected range, by client">
-      <ResponsiveContainer width="100%" height={240}>
-        <BarChart data={data} margin={{ top: 24, right: 8, left: -16, bottom: 0 }}>
-          <CartesianGrid stroke="var(--gridline)" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--baseline)' }} tickLine={false} />
-          <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          {clientKeys.map((key, i) => (
-            <Bar
-              key={key}
-              dataKey={key}
-              name={key}
-              stackId="stage"
-              fill={CLIENT_COLORS[i % CLIENT_COLORS.length]}
-              maxBarSize={56}
-              radius={i === clientKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-            >
-              <LabelList dataKey={key} position="center" formatter={segmentFmt} style={insideLabelStyle} />
-              {i === clientKeys.length - 1 && (
-                <LabelList dataKey="__total" position="top" formatter={fmt} style={labelStyle} />
-              )}
-            </Bar>
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+      {clientKeys.length === 0 ? (
+        <div className="flex h-[240px] items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
+          No production recorded yet in this range
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={data} margin={{ top: 24, right: 8, left: -16, bottom: 0 }}>
+            <CartesianGrid stroke="var(--gridline)" vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--baseline)' }} tickLine={false} />
+            <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            {clientKeys.map((key, i) => (
+              <Bar
+                key={key}
+                dataKey={key}
+                name={key}
+                stackId="stage"
+                fill={CLIENT_COLORS[i % CLIENT_COLORS.length]}
+                maxBarSize={56}
+                radius={i === clientKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              >
+                <LabelList dataKey={key} position="center" formatter={segmentFmt} style={insideLabelStyle} />
+                {i === clientKeys.length - 1 && (
+                  <LabelList dataKey="__total" position="top" formatter={fmt} style={labelStyle} />
+                )}
+              </Bar>
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </ChartCard>
   );
 }
