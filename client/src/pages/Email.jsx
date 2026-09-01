@@ -7,6 +7,8 @@ import {
   ZETWERK_BODY,
   CNC_SUBJECT,
   CNC_BODY,
+  HSD_PRODUCTION_SUBJECT,
+  HSD_PRODUCTION_BODY,
   HSD_MACHINE_SUBJECT,
   HSD_MACHINE_BODY,
   HSD_PAINTING_SUBJECT,
@@ -20,6 +22,7 @@ import {
 const REPORTS = {
   zetwerk: { label: 'Zetwerk', subject: ZETWERK_SUBJECT, to: ZETWERK_TO, cc: ZETWERK_CC, body: ZETWERK_BODY },
   cnc: { label: 'CNC', subject: CNC_SUBJECT, to: [], cc: [], body: CNC_BODY },
+  hsdProduction: { label: 'HSD-(Production)', subject: HSD_PRODUCTION_SUBJECT, to: [], cc: [], body: HSD_PRODUCTION_BODY },
   hsdMachine: { label: 'HSD-(Machine)', subject: HSD_MACHINE_SUBJECT, to: [], cc: [], body: HSD_MACHINE_BODY },
   hsdPainting: { label: 'HSD-(Painting)', subject: HSD_PAINTING_SUBJECT, to: [], cc: [], body: HSD_PAINTING_BODY },
   hsdQuality: { label: 'HSD-(Quality)', subject: HSD_QUALITY_SUBJECT, to: [], cc: [], body: HSD_QUALITY_BODY },
