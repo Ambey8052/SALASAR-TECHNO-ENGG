@@ -22,6 +22,11 @@ function getTransporter() {
       connectionTimeout: 15_000,
       greetingTimeout: 15_000,
       socketTimeout: 20_000,
+      // smtp.gmail.com resolves to both an IPv4 and an IPv6 address. Render's outbound IPv6
+      // routing doesn't reliably reach it, so the connection attempt hangs on IPv6 until it
+      // times out instead of falling back to IPv4 — this is what was actually behind
+      // "Connection timeout". Forcing IPv4 (Node's dns.lookup family option) skips that.
+      family: 4,
       // Pooling keeps the SMTP connection (and its TLS/auth handshake) open between sends
       // instead of paying that cost every single time — a real speedup for back-to-back
       // sends in the same warm process. The first send after a cold start still pays it once.
