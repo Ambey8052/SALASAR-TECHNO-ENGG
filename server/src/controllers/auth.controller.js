@@ -5,31 +5,24 @@ import { User } from '../models/User.js';
 import { GoogleToken } from '../models/GoogleToken.js';
 import { encryptText } from '../utils/crypto.js';
 
-function issueSessionCookie(res, user) {
+// Whether the cookie needs the cross-site (SameSite=None; Secure) shape or the simpler
+// same-site (Lax) one. Driven by req.secure (reliable because app.js sets 'trust proxy')
+// rather than NODE_ENV — Render doesn't guarantee that's set to 'production', and a wrong
+// guess here means the cookie silently never gets sent back on cross-origin API calls,
+// bouncing every login straight back to /login with no visible error.
+function crossSiteCookieOptions(req) {
+  const secure = req.secure;
+  return { httpOnly: true, secure, sameSite: secure ? 'none' : 'lax' };
+}
+
+function issueSessionCookie(req, res, user) {
   const token = jwt.sign(
     { sub: user._id.toString(), email: user.email, name: user.name, role: user.role },
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn },
   );
-  const isProd = env.nodeEnv === 'production';
-  res.cookie('session', token, {
-    httpOnly: true,
-    // The deployed client (Vercel) and server (Render) sit on different domains, so the
-    // session cookie is cross-site from the browser's point of view — that only gets sent
-    // on fetch/XHR (as opposed to a top-level OAuth-redirect navigation) if SameSite=None,
-    // which itself requires Secure. Locally, client and server share localhost so Lax (and
-    // no HTTPS) is fine and simpler.
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    maxAge: 12 * 60 * 60 * 1000,
-  });
+  res.cookie('session', token, { ...crossSiteCookieOptions(req), maxAge: 12 * 60 * 60 * 1000 });
 }
-
-const CLEAR_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: env.nodeEnv === 'production',
-  sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
-};
 
 export function redirectToGoogleLogin(req, res) {
   const client = createLoginOAuthClient();
@@ -73,7 +66,7 @@ export async function handleGoogleLoginCallback(req, res) {
       { upsert: true, returnDocument: 'after' },
     );
 
-    issueSessionCookie(res, user);
+    issueSessionCookie(req, res, user);
     res.redirect(env.clientOrigin);
   } catch (err) {
     console.error('[auth] Google login failed:', err.message);
@@ -94,7 +87,7 @@ export async function getCurrentUser(req, res) {
 }
 
 export function logout(req, res) {
-  res.clearCookie('session', CLEAR_COOKIE_OPTIONS);
+  res.clearCookie('session', crossSiteCookieOptions(req));
   res.json({ ok: true });
 }
 
