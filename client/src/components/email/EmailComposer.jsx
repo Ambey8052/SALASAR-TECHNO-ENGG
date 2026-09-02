@@ -4,8 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { sendReportEmail, scheduleReportEmail, fetchScheduledEmails, cancelScheduledEmail } from '../../lib/api';
 import { PC_HSD_EMAIL } from '../../lib/constants';
+import { uploadBoxHtml, reportLineHtml } from './emailTemplates';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INLINE_IMAGE_STYLE = 'max-width:100%;max-height:260px;display:block;margin:8px auto;border-radius:8px;';
 
 // One consistent focus-visible treatment, reused everywhere in this page instead of a
 // per-component exception, per the "no one-off styling" rule.
@@ -184,6 +186,67 @@ export function EmailComposer({ defaultSubject, defaultTo, defaultCc, bodyHtml }
     selection.addRange(range);
   }
 
+  // New sections/images always land just above the signature (never after it), matching
+  // where every static template already puts its content relative to the sign-off.
+  function insertBeforeSignature(html) {
+    const body = bodyRef.current;
+    if (!body) return [];
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    const nodes = [...temp.childNodes];
+    const signature = body.querySelector('#email-signature');
+    nodes.forEach((node) => body.insertBefore(node, signature || null));
+    return nodes;
+  }
+
+  function handleAddSection() {
+    if (sending) return;
+    const nodes = insertBeforeSignature(`${reportLineHtml('New section', 'margin-top:12px;')}${uploadBoxHtml()}`);
+    const editBtn = nodes.find((n) => n.nodeType === 1 && n.matches('[data-line]'))?.querySelector('[data-edit-line]');
+    if (editBtn) selectLineText(editBtn);
+  }
+
+  function handleAddImage() {
+    if (sending) return;
+    insertBeforeSignature(uploadBoxHtml());
+  }
+
+  function insertImageAtCaret(dataUrl) {
+    const body = bodyRef.current;
+    if (!body) return;
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.alt = 'Pasted image';
+    img.style.cssText = INLINE_IMAGE_STYLE;
+
+    const selection = window.getSelection();
+    if (selection?.rangeCount && body.contains(selection.anchorNode)) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(img);
+      range.setStartAfter(img);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      body.insertBefore(img, body.querySelector('#email-signature') || null);
+    }
+  }
+
+  function handleBodyPaste(e) {
+    if (sending) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageItem = [...items].find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    if (!imageItem) return; // not an image — let normal text paste proceed
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => insertImageAtCaret(reader.result);
+    reader.readAsDataURL(file);
+  }
+
   function handleBodyClick(e) {
     if (sending) return;
     const box = e.target.closest('[data-upload-box]');
@@ -344,6 +407,27 @@ export function EmailComposer({ defaultSubject, defaultTo, defaultCc, bodyHtml }
             onChange={handleBoxFileChange}
           />
 
+          <div className="mb-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAddSection}
+              disabled={sending}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              + Add section
+            </button>
+            <button
+              type="button"
+              onClick={handleAddImage}
+              disabled={sending}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              + Add image
+            </button>
+          </div>
+
           <div
             id="email-body"
             ref={bodyRef}
@@ -359,6 +443,7 @@ export function EmailComposer({ defaultSubject, defaultTo, defaultCc, bodyHtml }
             onDragOver={handleBodyDragOver}
             onDragLeave={handleBodyDragLeave}
             onDrop={handleBodyDrop}
+            onPaste={handleBodyPaste}
             className={`min-h-[280px] w-full rounded-lg border p-4 text-sm leading-relaxed disabled:cursor-not-allowed empty:before:italic empty:before:text-[var(--text-muted)] empty:before:content-[attr(data-placeholder)] [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_img]:my-2 [&_img]:max-w-full [&_li]:ml-4 [&_p]:mb-2 [&_ul]:list-disc ${FOCUS_RING}`}
             style={{ background: 'var(--surface-2)', color: 'var(--text-primary)', borderColor: 'var(--baseline)', opacity: sending ? 0.7 : 1 }}
           />

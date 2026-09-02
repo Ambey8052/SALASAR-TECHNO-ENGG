@@ -5,6 +5,7 @@ import { connectDb } from './config/db.js';
 import { initSocket } from './sockets/index.js';
 import { startSyncCron } from './jobs/cron.js';
 import { startEmailSchedulerCron } from './jobs/emailScheduler.js';
+import { startKeepAliveCron } from './jobs/keepAlive.js';
 
 async function main() {
   await connectDb();
@@ -13,6 +14,7 @@ async function main() {
   initSocket(httpServer);
   startSyncCron();
   startEmailSchedulerCron();
+  startKeepAliveCron();
 
   httpServer.listen(env.port, () => {
     console.log(`[server] listening on port ${env.port}`);

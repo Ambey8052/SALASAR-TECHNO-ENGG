@@ -37,4 +37,8 @@ export const env = {
 
   emailUser: process.env.EMAIL_USER || null,
   emailAppPassword: (process.env.EMAIL_APP_PASSWORD || '').replace(/\s+/g, '') || null,
+
+  // Render sets this automatically for web services — no manual config needed. Used to
+  // self-ping and avoid the free-tier's spin-down-after-idle cold start (see jobs/keepAlive.js).
+  publicUrl: process.env.RENDER_EXTERNAL_URL || null,
 };

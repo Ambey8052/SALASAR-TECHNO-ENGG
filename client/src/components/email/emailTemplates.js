@@ -362,3 +362,16 @@ export const RAMBOLL_BODY = `
   ${CLOSING_HTML('Thanks and Regards')}
   ${RAMBOLL_SIGNATURE_HTML}
 `;
+
+// --- Blank draft ---------------------------------------------------------------------------
+// No preset structure — an empty line to start typing in, plus the standard signature. Sections
+// (a heading line + an upload box) and standalone upload boxes are added on demand from the
+// composer's "+ Add section" / "+ Add image" buttons (see EmailComposer.jsx), reusing the same
+// reportLineHtml/uploadBoxHtml building blocks every other report template is built from.
+
+export const BLANK_SUBJECT = '';
+
+export const BLANK_BODY = `
+  <p><br></p>
+  ${SIGNATURE_HTML}
+`;

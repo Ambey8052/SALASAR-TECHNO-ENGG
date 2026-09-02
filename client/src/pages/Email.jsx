@@ -19,9 +19,12 @@ import {
   COW_BODY,
   RAMBOLL_SUBJECT,
   RAMBOLL_BODY,
+  BLANK_SUBJECT,
+  BLANK_BODY,
 } from '../components/email/emailTemplates';
 
 const REPORTS = {
+  blank: { label: 'Blank draft', subject: BLANK_SUBJECT, to: [], cc: [], body: BLANK_BODY },
   zetwerk: { label: 'Zetwerk', subject: ZETWERK_SUBJECT, to: ZETWERK_TO, cc: ZETWERK_CC, body: ZETWERK_BODY },
   cnc: { label: 'CNC', subject: CNC_SUBJECT, to: [], cc: [], body: CNC_BODY },
   hsdProduction: { label: 'HSD-(Production)', subject: HSD_PRODUCTION_SUBJECT, to: [], cc: [], body: HSD_PRODUCTION_BODY },

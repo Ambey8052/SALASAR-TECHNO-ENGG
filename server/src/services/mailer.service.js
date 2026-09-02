@@ -22,6 +22,12 @@ function getTransporter() {
       connectionTimeout: 15_000,
       greetingTimeout: 15_000,
       socketTimeout: 20_000,
+      // Pooling keeps the SMTP connection (and its TLS/auth handshake) open between sends
+      // instead of paying that cost every single time — a real speedup for back-to-back
+      // sends in the same warm process. The first send after a cold start still pays it once.
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 50,
     });
   }
   return transporter;
