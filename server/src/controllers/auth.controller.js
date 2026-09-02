@@ -11,13 +11,25 @@ function issueSessionCookie(res, user) {
     env.jwtSecret,
     { expiresIn: env.jwtExpiresIn },
   );
+  const isProd = env.nodeEnv === 'production';
   res.cookie('session', token, {
     httpOnly: true,
-    secure: env.nodeEnv === 'production',
-    sameSite: 'lax',
+    // The deployed client (Vercel) and server (Render) sit on different domains, so the
+    // session cookie is cross-site from the browser's point of view — that only gets sent
+    // on fetch/XHR (as opposed to a top-level OAuth-redirect navigation) if SameSite=None,
+    // which itself requires Secure. Locally, client and server share localhost so Lax (and
+    // no HTTPS) is fine and simpler.
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     maxAge: 12 * 60 * 60 * 1000,
   });
 }
+
+const CLEAR_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: env.nodeEnv === 'production',
+  sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
+};
 
 export function redirectToGoogleLogin(req, res) {
   const client = createLoginOAuthClient();
@@ -82,7 +94,7 @@ export async function getCurrentUser(req, res) {
 }
 
 export function logout(req, res) {
-  res.clearCookie('session');
+  res.clearCookie('session', CLEAR_COOKIE_OPTIONS);
   res.json({ ok: true });
 }
 
