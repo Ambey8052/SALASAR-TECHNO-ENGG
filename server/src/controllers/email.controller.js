@@ -36,7 +36,7 @@ export async function sendReport(req, res) {
       return res.status(503).json({ error: err.message });
     }
     console.error('[email] send failed:', err.message);
-    res.status(502).json({ error: 'Failed to send email. Please try again.' });
+    res.status(502).json({ error: `Failed to send email: ${err.message}` });
   }
 }
 

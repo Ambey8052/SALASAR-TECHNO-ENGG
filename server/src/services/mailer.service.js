@@ -15,6 +15,13 @@ function getTransporter() {
     transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: { user: env.emailUser, pass: env.emailAppPassword },
+      // Without explicit timeouts, a stalled connection to Gmail (common right after a
+      // free-tier Render instance wakes from sleep, before outbound networking is fully up)
+      // hangs until the client's own axios timeout gives up — which surfaces as a generic
+      // "failed to send" with no useful cause. These make it fail fast with a clear reason.
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 20_000,
     });
   }
   return transporter;
