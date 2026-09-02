@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { triggerSync } from '../../lib/api';
+import { triggerSync, API_BASE } from '../../lib/api';
 
 const STATUS_COLOR = {
   success: 'var(--status-good)',
@@ -27,7 +27,7 @@ export function SyncStatusBadge({ status, onSynced }) {
         <span className="h-2 w-2 rounded-full" style={{ background: 'var(--status-warning)' }} />
         Drive not connected
         {user?.role === 'admin' && (
-          <a href="/api/auth/google/connect-drive" className="ml-1 underline">
+          <a href={`${API_BASE}/api/auth/google/connect-drive`} className="ml-1 underline">
             Connect
           </a>
         )}

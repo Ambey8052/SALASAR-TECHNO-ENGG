@@ -4,7 +4,7 @@ import axios from 'axios';
 // localhost:5001. In production the client (Vercel) and server (Render) are different
 // origins, so VITE_API_URL must point at the deployed server, e.g.
 // https://salasar-techno-engg.onrender.com.
-const API_BASE = import.meta.env.VITE_API_URL || '';
+export const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export const api = axios.create({
   baseURL: `${API_BASE}/api`,

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
+import { API_BASE } from '../lib/api';
 
 const ERROR_MESSAGES = {
   login_failed: 'Login failed. Please try again.',
@@ -47,7 +48,7 @@ export function Login() {
         <motion.a
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
-          href="/api/auth/google"
+          href={`${API_BASE}/api/auth/google`}
           className="flex w-full items-center justify-center gap-3 rounded-lg border px-4 py-2.5 text-sm font-medium shadow-sm"
           style={{ color: 'var(--text-primary)', background: 'var(--surface-2)' }}
         >
