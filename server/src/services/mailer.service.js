@@ -1,5 +1,28 @@
 import nodemailer from 'nodemailer';
+import dns from 'dns/promises';
 import { env } from '../config/env.js';
+
+const GMAIL_SMTP_HOST = 'smtp.gmail.com';
+const GMAIL_SMTP_PORT = 465;
+
+// Neither the transporter's `family: 4` option nor process-wide dns.setDefaultResultOrder
+// stopped Render from attempting an IPv6 connection to Gmail (ENETUNREACH — Render's outbound
+// IPv6 routing doesn't reach it). Reading nodemailer's own source explains why: its SMTP
+// connection module does its own DNS resolution independent of Node's settings — it resolves
+// *both* the IPv4 and IPv6 addresses and then picks a **random** one from the combined list.
+// No transport option can override that. The only reliable fix is to not let it resolve the
+// hostname at all: nodemailer only does its own lookup when `host` isn't already a literal IP,
+// so resolving the IPv4 address ourselves and connecting to that IP directly skips it entirely.
+// `tls.servername` keeps TLS certificate verification (and SNI) checking against the real
+// hostname rather than the bare IP.
+async function resolveGmailIPv4() {
+  // dns.lookup (the OS resolver, getaddrinfo) rather than dns.resolve4 (a raw DNS query against
+  // a configured nameserver) — the latter doesn't work in every environment (it's blocked
+  // outright in some sandboxed/corporate networks), while dns.lookup is the same broadly
+  // portable path a normal hostname connection would use, just constrained to IPv4 only.
+  const { address } = await dns.lookup(GMAIL_SMTP_HOST, { family: 4 });
+  return address;
+}
 
 export class MailerUnavailableError extends Error {
   constructor(message) {
@@ -8,34 +31,39 @@ export class MailerUnavailableError extends Error {
   }
 }
 
-let transporter = null;
+let transporterPromise = null;
 function getTransporter() {
   if (!env.emailUser || !env.emailAppPassword) return null;
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: env.emailUser, pass: env.emailAppPassword },
-      // Without explicit timeouts, a stalled connection to Gmail (common right after a
-      // free-tier Render instance wakes from sleep, before outbound networking is fully up)
-      // hangs until the client's own axios timeout gives up — which surfaces as a generic
-      // "failed to send" with no useful cause. These make it fail fast with a clear reason.
-      connectionTimeout: 15_000,
-      greetingTimeout: 15_000,
-      socketTimeout: 20_000,
-      // smtp.gmail.com resolves to both an IPv4 and an IPv6 address. Render's outbound IPv6
-      // routing doesn't reliably reach it, so the connection attempt hangs on IPv6 until it
-      // times out instead of falling back to IPv4 — this is what was actually behind
-      // "Connection timeout". Forcing IPv4 (Node's dns.lookup family option) skips that.
-      family: 4,
-      // Pooling keeps the SMTP connection (and its TLS/auth handshake) open between sends
-      // instead of paying that cost every single time — a real speedup for back-to-back
-      // sends in the same warm process. The first send after a cold start still pays it once.
-      pool: true,
-      maxConnections: 1,
-      maxMessages: 50,
-    });
+  if (!transporterPromise) {
+    transporterPromise = resolveGmailIPv4().then(
+      (ip) =>
+        nodemailer.createTransport({
+          host: ip,
+          port: GMAIL_SMTP_PORT,
+          secure: true,
+          tls: { servername: GMAIL_SMTP_HOST },
+          auth: { user: env.emailUser, pass: env.emailAppPassword },
+          // Without explicit timeouts, a stalled connection (common right after a free-tier
+          // Render instance wakes from sleep, before outbound networking is fully up) hangs
+          // until the client's own axios timeout gives up — a generic error with no cause.
+          // These make it fail fast with a clear reason instead.
+          connectionTimeout: 15_000,
+          greetingTimeout: 15_000,
+          socketTimeout: 20_000,
+          // Pooling keeps the connection (and its TLS/auth handshake) open between sends
+          // instead of paying that cost every time — a real speedup for back-to-back sends
+          // in the same warm process. The first send after a cold start still pays it once.
+          pool: true,
+          maxConnections: 1,
+          maxMessages: 50,
+        }),
+      (err) => {
+        transporterPromise = null; // let the next send retry the DNS resolution
+        throw err;
+      },
+    );
   }
-  return transporter;
+  return transporterPromise;
 }
 
 // Inline images are composed as data: URLs in the rich-text body (so they preview instantly
@@ -64,8 +92,9 @@ export function extractInlineImages(html) {
 }
 
 export async function sendReportEmail({ from, to, cc, subject, html, attachments = [] }) {
-  const client = getTransporter();
-  if (!client) throw new MailerUnavailableError('Email sending is not configured on the server.');
+  const transporterOrNull = getTransporter();
+  if (!transporterOrNull) throw new MailerUnavailableError('Email sending is not configured on the server.');
+  const client = await transporterOrNull;
 
   const { html: finalHtml, attachments: inlineAttachments } = extractInlineImages(html);
 
