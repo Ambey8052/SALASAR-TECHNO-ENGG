@@ -86,7 +86,7 @@ export function Dashboard() {
       </div>
 
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-        Snapshot (fixed) &amp; {formatRangeLabel(range)} (follows the filter above)
+        Snapshot &amp; {formatRangeLabel(range)}
       </div>
       <motion.div
         initial="hidden"
