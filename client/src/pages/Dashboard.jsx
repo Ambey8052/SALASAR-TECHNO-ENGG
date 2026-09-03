@@ -86,15 +86,16 @@ export function Dashboard() {
       </div>
 
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-        Snapshot — fixed, ignores the filter above
+        Snapshot (fixed) &amp; {formatRangeLabel(range)} (follows the filter above)
       </div>
       <motion.div
         initial="hidden"
         animate="visible"
         variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-        className="mb-6 grid grid-cols-2 gap-4"
+        className="mb-6 flex items-stretch gap-3 overflow-x-auto"
       >
         <StatCard
+          compact
           label="Manpower today"
           value={summary?.manpower.today ?? '—'}
           unit="on site"
@@ -102,6 +103,7 @@ export function Dashboard() {
         />
         {summary?.dispatch?.available && (
           <StatCard
+            compact
             label={
               summary.dispatch.lastRecordedDay?.date
                 ? `Dispatched (${format(new Date(summary.dispatch.lastRecordedDay.date), 'd MMM')})`
@@ -110,8 +112,25 @@ export function Dashboard() {
             value={summary?.dispatch.lastRecordedDay?.total ?? '—'}
             unit="MT"
             accent="var(--series-2)"
-            hint="Last day with recorded dispatch"
           />
+        )}
+        {productionAvailable && (
+          <>
+            <StatCard
+              compact
+              label={`Completed (${preset})`}
+              value={summary?.production.completedInRange ?? '—'}
+              unit="MT"
+              accent="var(--series-3)"
+            />
+            <StatCard
+              compact
+              label={`Dispatched (${preset})`}
+              value={summary?.dispatch.inRange ?? '—'}
+              unit="MT"
+              accent="var(--series-2)"
+            />
+          </>
         )}
       </motion.div>
 
@@ -119,35 +138,6 @@ export function Dashboard() {
         <div className="mb-6 rounded-xl border px-4 py-3 text-sm" style={{ color: 'var(--text-muted)', background: 'var(--surface-1)' }}>
           Production and dispatch tracking for Bhilai isn't connected to a data source yet — only manpower is available for this unit right now.
         </div>
-      )}
-
-      {productionAvailable && (
-        <>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-            {formatRangeLabel(range)} — follows the filter above
-          </div>
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-            className="mb-6 grid grid-cols-2 gap-4"
-          >
-            <StatCard
-              label={`Completed (${preset})`}
-              value={summary?.production.completedInRange ?? '—'}
-              unit="MT"
-              accent="var(--series-3)"
-              hint="Final-coat completions in the selected range"
-            />
-            <StatCard
-              label={`Dispatched (${preset})`}
-              value={summary?.dispatch.inRange ?? '—'}
-              unit="MT"
-              accent="var(--series-2)"
-              hint="Dispatched in the selected range"
-            />
-          </motion.div>
-        </>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
