@@ -1,57 +1,15 @@
-import nodemailer from 'nodemailer';
-import dns from 'dns/promises';
-import { env } from '../config/env.js';
+import { google } from 'googleapis';
+import MailComposer from 'nodemailer/lib/mail-composer/index.js';
+import { createGmailOAuthClient } from '../config/google.js';
+import { GoogleToken } from '../models/GoogleToken.js';
+import { decryptText } from '../utils/crypto.js';
 
-const GMAIL_SMTP_HOST = 'smtp.gmail.com';
-// Two different failure modes have shown up in production (Render), each ruling out a
-// different assumption:
-//  1. ENETUNREACH on an IPv6 address — nodemailer's own DNS resolution (independent of any
-//     transport option, or even Node's dns.setDefaultResultOrder) resolves both address
-//     families and picks a random one; fixed by resolving IPv4 ourselves and connecting to
-//     that literal IP so nodemailer has no hostname left to resolve.
-//  2. Connection timeout on the correctly-resolved IPv4 address, port 465 — Render silently
-//     drops the connection rather than refusing it, which is the signature of an egress
-//     firewall blocking that specific port (465, and 587 blocks the same way on some hosts).
-// So this tries every combination of (IPv4 address × port/security mode) and keeps whichever
-// one actually completes a real handshake, instead of betting on a single guess.
-const CANDIDATE_PORTS = [
-  { port: 465, secure: true }, // implicit TLS
-  { port: 587, secure: false }, // STARTTLS
-];
-
-async function resolveGmailIPv4Addresses() {
-  // dns.lookup (the OS resolver, getaddrinfo) rather than dns.resolve4 (a raw DNS query against
-  // a configured nameserver) — the latter doesn't work in every environment (it's blocked
-  // outright in some sandboxed/corporate networks), while dns.lookup is the same broadly
-  // portable path a normal hostname connection would use, just constrained to IPv4 only.
-  const results = await dns.lookup(GMAIL_SMTP_HOST, { family: 4, all: true });
-  return results.map((r) => r.address);
-}
-
-function buildTransport(host, { port, secure }) {
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    requireTLS: !secure, // STARTTLS on 587 must actually upgrade, never send auth in the clear
-    tls: { servername: GMAIL_SMTP_HOST }, // keep cert verification pinned to the real hostname
-    auth: { user: env.emailUser, pass: env.emailAppPassword },
-    // Without explicit timeouts, a stalled connection (common right after a free-tier Render
-    // instance wakes from sleep, before outbound networking is fully up, or when a port is
-    // silently firewalled) hangs until the client's own axios timeout gives up — a generic
-    // error with no cause. These make each candidate fail fast so probing stays quick.
-    connectionTimeout: 8_000,
-    greetingTimeout: 8_000,
-    socketTimeout: 15_000,
-    // Pooling keeps the connection (and its TLS/auth handshake) open between sends instead of
-    // paying that cost every time — a real speedup for back-to-back sends in the same warm
-    // process. The first send after a cold start still pays it once.
-    pool: true,
-    maxConnections: 1,
-    maxMessages: 50,
-  });
-}
-
+// SMTP is not usable from this host: every combination of Gmail's SMTP IPv4 addresses and
+// both standard ports (465, 587) times out — Render's outbound network blocks SMTP entirely
+// for this plan, confirmed by direct testing. Sending goes over the Gmail API instead (plain
+// HTTPS to gmail.googleapis.com), a port that's never blocked. This needs its own OAuth grant
+// from pc.hsd@salasartechno.com (see redirectToGmailConnect in auth.controller.js) rather than
+// the app password, which only worked for SMTP auth and has no bearing on the API.
 export class MailerUnavailableError extends Error {
   constructor(message) {
     super(message);
@@ -59,41 +17,13 @@ export class MailerUnavailableError extends Error {
   }
 }
 
-let transporterPromise = null;
-async function probeTransporter() {
-  const addresses = await resolveGmailIPv4Addresses();
-  const attempts = [];
-  for (const host of addresses) {
-    for (const candidate of CANDIDATE_PORTS) {
-      attempts.push({ host, ...candidate });
-    }
-  }
+async function getGmailClient() {
+  const tokenDoc = await GoogleToken.findOne({ purpose: 'gmail-send' });
+  if (!tokenDoc) return null;
 
-  const errors = [];
-  for (const { host, port, secure } of attempts) {
-    const candidate = buildTransport(host, { port, secure });
-    try {
-      await candidate.verify(); // actually opens the connection and authenticates
-      console.log(`[mailer] connected via ${host}:${port} (${secure ? 'TLS' : 'STARTTLS'})`);
-      return candidate;
-    } catch (err) {
-      candidate.close();
-      errors.push(`${host}:${port} — ${err.message}`);
-    }
-  }
-
-  throw new Error(`Could not reach Gmail SMTP on any address/port. Tried:\n${errors.join('\n')}`);
-}
-
-function getTransporter() {
-  if (!env.emailUser || !env.emailAppPassword) return null;
-  if (!transporterPromise) {
-    transporterPromise = probeTransporter().catch((err) => {
-      transporterPromise = null; // let the next send retry the whole probe
-      throw err;
-    });
-  }
-  return transporterPromise;
+  const client = createGmailOAuthClient();
+  client.setCredentials({ refresh_token: decryptText(tokenDoc.encryptedRefreshToken) });
+  return google.gmail({ version: 'v1', auth: client });
 }
 
 // Inline images are composed as data: URLs in the rich-text body (so they preview instantly
@@ -121,14 +51,28 @@ export function extractInlineImages(html) {
   return { html: rewritten, attachments };
 }
 
+// MailComposer (nodemailer's MIME builder, used here purely for composition — nothing is sent
+// over SMTP) produces the exact RFC 2822 message the Gmail API's messages.send expects as its
+// base64url-encoded `raw` field.
+function buildRawMessage(mail) {
+  return new Promise((resolve, reject) => {
+    new MailComposer(mail).compile().build((err, message) => {
+      if (err) return reject(err);
+      resolve(message.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
+    });
+  });
+}
+
 export async function sendReportEmail({ from, to, cc, subject, html, attachments = [] }) {
-  const transporterOrNull = getTransporter();
-  if (!transporterOrNull) throw new MailerUnavailableError('Email sending is not configured on the server.');
-  const client = await transporterOrNull;
+  const gmail = await getGmailClient();
+  if (!gmail) {
+    throw new MailerUnavailableError(
+      'Gmail sending is not connected yet. Visit /api/auth/google/connect-gmail signed in as pc.hsd@salasartechno.com.',
+    );
+  }
 
   const { html: finalHtml, attachments: inlineAttachments } = extractInlineImages(html);
-
-  await client.sendMail({
+  const raw = await buildRawMessage({
     from,
     to,
     cc: cc?.length ? cc : undefined,
@@ -136,4 +80,6 @@ export async function sendReportEmail({ from, to, cc, subject, html, attachments
     html: finalHtml,
     attachments: [...inlineAttachments, ...attachments],
   });
+
+  await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
 }

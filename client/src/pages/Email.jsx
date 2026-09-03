@@ -1,5 +1,8 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { EmailComposer } from '../components/email/EmailComposer';
+import { fetchGmailSendStatus, API_BASE } from '../lib/api';
 import {
   ZETWERK_SUBJECT,
   ZETWERK_TO,
@@ -37,15 +40,55 @@ const REPORTS = {
 
 const FOCUS_RING = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--series-1)]';
 
+const GMAIL_CONNECT_MESSAGES = {
+  success: { text: 'Gmail connected — sending is ready to use.', good: true },
+  no_refresh_token: {
+    text: 'Google did not return a refresh token. Revoke access at myaccount.google.com/permissions and try again.',
+    good: false,
+  },
+  wrong_account: { text: 'That consent was granted by a different Google account. Sign in as pc.hsd@salasartechno.com and try again.', good: false },
+  failed: { text: 'Connecting Gmail failed. Please try again.', good: false },
+  missing_code: { text: 'Gmail connection was cancelled.', good: false },
+};
+
 export function Email() {
   const [activeTab, setActiveTab] = useState('zetwerk');
   const report = REPORTS[activeTab];
+  const [params] = useSearchParams();
+  const gmailConnect = params.get('gmailConnect');
+  const connectMessage = gmailConnect ? GMAIL_CONNECT_MESSAGES[gmailConnect] : null;
+
+  const gmailStatusQuery = useQuery({
+    queryKey: ['gmail-send-status'],
+    queryFn: fetchGmailSendStatus,
+  });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <h1 className="mb-4 text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
         Email
       </h1>
+
+      {connectMessage && (
+        <div
+          className="mb-4 rounded-lg border px-4 py-3 text-sm"
+          style={{ color: connectMessage.good ? 'var(--status-good)' : 'var(--status-critical)' }}
+        >
+          {connectMessage.text}
+        </div>
+      )}
+
+      {gmailStatusQuery.data && !gmailStatusQuery.data.connected && (
+        <div
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3 text-sm"
+          style={{ color: 'var(--status-warning)' }}
+        >
+          <span>Gmail sending isn't connected yet — nothing can be sent until this is done.</span>
+          <a href={`${API_BASE}/api/auth/google/connect-gmail`} className={`shrink-0 underline ${FOCUS_RING}`}>
+            Connect Gmail
+          </a>
+        </div>
+      )}
 
       <div className="mb-4 flex max-w-full flex-wrap gap-1 rounded-xl border p-1" style={{ background: 'var(--surface-1)', width: 'fit-content' }} role="tablist" aria-label="Report type">
         {Object.entries(REPORTS).map(([key, { label }]) => (

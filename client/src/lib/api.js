@@ -84,3 +84,8 @@ export async function cancelScheduledEmail(id) {
   const { data } = await api.delete(`/email/scheduled/${id}`);
   return data;
 }
+
+export async function fetchGmailSendStatus() {
+  const { data } = await api.get('/auth/google/gmail-send-status');
+  return data;
+}

@@ -20,6 +20,7 @@ export const env = {
   googleClientSecret: required('GOOGLE_CLIENT_SECRET'),
   googleLoginRedirectUri: required('GOOGLE_LOGIN_REDIRECT_URI', 'http://localhost:5001/api/auth/google/callback'),
   googleDriveRedirectUri: required('GOOGLE_DRIVE_REDIRECT_URI', 'http://localhost:5001/api/auth/google/connect-drive/callback'),
+  gmailSendRedirectUri: required('GMAIL_SEND_REDIRECT_URI', 'http://localhost:5001/api/auth/google/connect-gmail/callback'),
 
   jwtSecret: required('JWT_SECRET', 'dev-only-change-me'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '12h',

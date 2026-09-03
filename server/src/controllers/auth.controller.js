@@ -1,5 +1,12 @@
 import jwt from 'jsonwebtoken';
-import { createLoginOAuthClient, createDriveOAuthClient, LOGIN_SCOPES, DRIVE_SYNC_SCOPES } from '../config/google.js';
+import {
+  createLoginOAuthClient,
+  createDriveOAuthClient,
+  createGmailOAuthClient,
+  LOGIN_SCOPES,
+  DRIVE_SYNC_SCOPES,
+  GMAIL_SEND_SCOPES,
+} from '../config/google.js';
 import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { GoogleToken } from '../models/GoogleToken.js';
@@ -143,4 +150,73 @@ export async function handleDriveConnectCallback(req, res) {
 export async function disconnectDrive(req, res) {
   await GoogleToken.deleteOne({ purpose: 'drive-sync' });
   res.json({ ok: true });
+}
+
+// Render's outbound network blocks SMTP entirely (confirmed: connections to Gmail's SMTP
+// host time out on every address/port tried), so sending goes through the Gmail API over
+// plain HTTPS instead — a port that's never blocked. That needs its own OAuth grant, from
+// pc.hsd@salasartechno.com specifically, since only that account can authorize "send email
+// as me." Route access is restricted (requireEmail) to that same account, matching who's
+// allowed to use the Email page at all.
+export function redirectToGmailConnect(req, res) {
+  const client = createGmailOAuthClient();
+  const url = client.generateAuthUrl({
+    access_type: 'offline',
+    scope: GMAIL_SEND_SCOPES,
+    prompt: 'consent',
+    login_hint: env.emailUser,
+  });
+  res.redirect(url);
+}
+
+export async function handleGmailConnectCallback(req, res) {
+  const { code } = req.query;
+  if (!code) {
+    return res.redirect(`${env.clientOrigin}/email?gmailConnect=missing_code`);
+  }
+
+  try {
+    const client = createGmailOAuthClient();
+    const { tokens } = await client.getToken(code);
+
+    if (!tokens.refresh_token) {
+      return res.redirect(`${env.clientOrigin}/email?gmailConnect=no_refresh_token`);
+    }
+
+    let grantedByEmail = req.user.email;
+    if (tokens.id_token) {
+      const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: env.googleClientId });
+      grantedByEmail = ticket.getPayload().email?.toLowerCase() || grantedByEmail;
+    }
+
+    if (grantedByEmail !== env.emailUser?.toLowerCase()) {
+      return res.redirect(`${env.clientOrigin}/email?gmailConnect=wrong_account`);
+    }
+
+    await GoogleToken.findOneAndUpdate(
+      { purpose: 'gmail-send' },
+      {
+        purpose: 'gmail-send',
+        encryptedRefreshToken: encryptText(tokens.refresh_token),
+        scope: tokens.scope,
+        connectedByEmail: grantedByEmail,
+        connectedAt: new Date(),
+      },
+      { upsert: true },
+    );
+
+    res.redirect(`${env.clientOrigin}/email?gmailConnect=success`);
+  } catch (err) {
+    console.error('[auth] Gmail send connect failed:', err.message);
+    res.redirect(`${env.clientOrigin}/email?gmailConnect=failed`);
+  }
+}
+
+export async function getGmailSendStatus(req, res) {
+  const tokenDoc = await GoogleToken.findOne({ purpose: 'gmail-send' }).lean();
+  res.json({
+    connected: Boolean(tokenDoc),
+    connectedByEmail: tokenDoc?.connectedByEmail ?? null,
+    connectedAt: tokenDoc?.connectedAt ?? null,
+  });
 }
