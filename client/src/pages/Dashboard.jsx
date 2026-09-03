@@ -92,7 +92,7 @@ export function Dashboard() {
         initial="hidden"
         animate="visible"
         variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-        className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        className="mb-6 grid grid-cols-2 gap-4"
       >
         <StatCard
           label="Manpower today"
@@ -100,15 +100,6 @@ export function Dashboard() {
           unit="on site"
           accent="var(--series-1)"
         />
-        {productionAvailable && (
-          <StatCard
-            label="Completed today"
-            value={summary?.production.completedToday ?? '—'}
-            unit="MT"
-            accent="var(--series-3)"
-            hint="Final-coat completions"
-          />
-        )}
         {summary?.dispatch?.available && (
           <StatCard
             label={
@@ -139,7 +130,7 @@ export function Dashboard() {
             initial="hidden"
             animate="visible"
             variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-            className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2"
+            className="mb-6 grid grid-cols-2 gap-4"
           >
             <StatCard
               label={`Completed (${preset})`}
