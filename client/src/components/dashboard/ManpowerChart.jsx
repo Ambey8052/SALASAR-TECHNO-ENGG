@@ -50,7 +50,7 @@ function ChartCard({ title, subtitle, onClick, children }) {
 
 const PX_PER_POINT = 42;
 
-function ManpowerLineChart({ data, expanded }) {
+function ManpowerLineChart({ data, categoryKeys, expanded }) {
   const chart = (
     <LineChart data={data} margin={{ top: 20, right: 8, left: expanded ? 0 : -16, bottom: 0 }}>
       <CartesianGrid stroke="var(--gridline)" vertical={false} />
@@ -67,28 +67,23 @@ function ManpowerLineChart({ data, expanded }) {
       />
       <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={36} />
       <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => CATEGORY_LABELS[v] || v} />
-      <Line
-        type="monotone"
-        dataKey="fabrication"
-        name="fabrication"
-        stroke={CATEGORY_COLORS.fabrication}
-        strokeWidth={2.5}
-        dot={{ r: 3, fill: CATEGORY_COLORS.fabrication, strokeWidth: 0 }}
-        connectNulls
-      >
-        <LabelList dataKey="fabrication" position="top" formatter={fmt} style={{ fill: CATEGORY_COLORS.fabrication, fontSize: 10, fontWeight: 600 }} />
-      </Line>
-      <Line
-        type="monotone"
-        dataKey="painting"
-        name="painting"
-        stroke={CATEGORY_COLORS.painting}
-        strokeWidth={2.5}
-        dot={{ r: 3, fill: CATEGORY_COLORS.painting, strokeWidth: 0 }}
-        connectNulls
-      >
-        <LabelList dataKey="painting" position="bottom" formatter={fmt} style={{ fill: CATEGORY_COLORS.painting, fontSize: 10, fontWeight: 600 }} />
-      </Line>
+      {categoryKeys.map((key, i) => {
+        const color = CATEGORY_COLORS[key] || 'var(--series-1)';
+        return (
+          <Line
+            key={key}
+            type="monotone"
+            dataKey={key}
+            name={key}
+            stroke={color}
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: color, strokeWidth: 0 }}
+            connectNulls
+          >
+            <LabelList dataKey={key} position={i % 2 === 0 ? 'top' : 'bottom'} formatter={fmt} style={{ fill: color, fontSize: 10, fontWeight: 600 }} />
+          </Line>
+        );
+      })}
     </LineChart>
   );
 
@@ -111,16 +106,28 @@ function ManpowerLineChart({ data, expanded }) {
   );
 }
 
+// Preferred display order — HSD only ever has the first two, so its chart naturally shows
+// just those; Bhilai (BU) also has civil/shed (and sometimes office), which slot in here too.
+const CATEGORY_ORDER = ['fabrication', 'painting', 'civil', 'shed', 'office'];
+
 export function ManpowerTrendChart({ trendByCategory }) {
   const [expanded, setExpanded] = useState(false);
-  const data = trendByCategory.map((t) => ({ date: t.date, fabrication: t.fabrication ?? 0, painting: t.painting ?? 0 }));
+  const categoryKeys = CATEGORY_ORDER.filter((key) => trendByCategory.some((t) => key in t));
+  const data = trendByCategory.map((t) => {
+    const row = { date: t.date };
+    categoryKeys.forEach((key) => {
+      row[key] = t[key] ?? 0;
+    });
+    return row;
+  });
   const empty = data.length === 0;
+  const categoryList = categoryKeys.map((k) => CATEGORY_LABELS[k]).join(' vs ');
 
   return (
     <>
       <ChartCard
         title="Manpower on site"
-        subtitle="Fabrication vs painting, per day, in the selected range"
+        subtitle={`${categoryList}, per day, in the selected range`}
         onClick={empty ? undefined : () => setExpanded(true)}
       >
         {empty ? (
@@ -128,16 +135,16 @@ export function ManpowerTrendChart({ trendByCategory }) {
             No manpower data synced for this range yet
           </div>
         ) : (
-          <ManpowerLineChart data={data} expanded={false} />
+          <ManpowerLineChart data={data} categoryKeys={categoryKeys} expanded={false} />
         )}
       </ChartCard>
       <ChartModal
         title="Manpower on site"
-        subtitle="Fabrication vs painting — every day in the selected range"
+        subtitle={`${categoryList} — every day in the selected range`}
         isOpen={expanded}
         onClose={() => setExpanded(false)}
       >
-        <ManpowerLineChart data={data} expanded />
+        <ManpowerLineChart data={data} categoryKeys={categoryKeys} expanded />
       </ChartModal>
     </>
   );

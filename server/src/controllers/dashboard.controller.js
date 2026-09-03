@@ -45,9 +45,11 @@ async function getManpowerSummary(from, to, businessUnit) {
       { $group: { _id: '$date', total: { $sum: '$count' } } },
       { $sort: { _id: 1 } },
     ]),
-    // Fabrication and painting broken out day by day, for the two-line manpower trend chart.
+    // Every category broken out day by day, for the manpower trend chart. HSD only ever has
+    // fabrication/painting records, so its trend naturally shows just those two lines; Bhilai
+    // (BU) also has civil and shed (and office), which show up here the same way.
     ManpowerRecord.aggregate([
-      { $match: { ...match, category: { $in: ['fabrication', 'painting'] } } },
+      { $match: match },
       { $group: { _id: { date: '$date', category: '$category' }, total: { $sum: '$count' } } },
       { $sort: { '_id.date': 1 } },
     ]),
