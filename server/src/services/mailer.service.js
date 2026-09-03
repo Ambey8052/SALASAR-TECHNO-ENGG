@@ -3,25 +3,53 @@ import dns from 'dns/promises';
 import { env } from '../config/env.js';
 
 const GMAIL_SMTP_HOST = 'smtp.gmail.com';
-const GMAIL_SMTP_PORT = 465;
+// Two different failure modes have shown up in production (Render), each ruling out a
+// different assumption:
+//  1. ENETUNREACH on an IPv6 address — nodemailer's own DNS resolution (independent of any
+//     transport option, or even Node's dns.setDefaultResultOrder) resolves both address
+//     families and picks a random one; fixed by resolving IPv4 ourselves and connecting to
+//     that literal IP so nodemailer has no hostname left to resolve.
+//  2. Connection timeout on the correctly-resolved IPv4 address, port 465 — Render silently
+//     drops the connection rather than refusing it, which is the signature of an egress
+//     firewall blocking that specific port (465, and 587 blocks the same way on some hosts).
+// So this tries every combination of (IPv4 address × port/security mode) and keeps whichever
+// one actually completes a real handshake, instead of betting on a single guess.
+const CANDIDATE_PORTS = [
+  { port: 465, secure: true }, // implicit TLS
+  { port: 587, secure: false }, // STARTTLS
+];
 
-// Neither the transporter's `family: 4` option nor process-wide dns.setDefaultResultOrder
-// stopped Render from attempting an IPv6 connection to Gmail (ENETUNREACH — Render's outbound
-// IPv6 routing doesn't reach it). Reading nodemailer's own source explains why: its SMTP
-// connection module does its own DNS resolution independent of Node's settings — it resolves
-// *both* the IPv4 and IPv6 addresses and then picks a **random** one from the combined list.
-// No transport option can override that. The only reliable fix is to not let it resolve the
-// hostname at all: nodemailer only does its own lookup when `host` isn't already a literal IP,
-// so resolving the IPv4 address ourselves and connecting to that IP directly skips it entirely.
-// `tls.servername` keeps TLS certificate verification (and SNI) checking against the real
-// hostname rather than the bare IP.
-async function resolveGmailIPv4() {
+async function resolveGmailIPv4Addresses() {
   // dns.lookup (the OS resolver, getaddrinfo) rather than dns.resolve4 (a raw DNS query against
   // a configured nameserver) — the latter doesn't work in every environment (it's blocked
   // outright in some sandboxed/corporate networks), while dns.lookup is the same broadly
   // portable path a normal hostname connection would use, just constrained to IPv4 only.
-  const { address } = await dns.lookup(GMAIL_SMTP_HOST, { family: 4 });
-  return address;
+  const results = await dns.lookup(GMAIL_SMTP_HOST, { family: 4, all: true });
+  return results.map((r) => r.address);
+}
+
+function buildTransport(host, { port, secure }) {
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    requireTLS: !secure, // STARTTLS on 587 must actually upgrade, never send auth in the clear
+    tls: { servername: GMAIL_SMTP_HOST }, // keep cert verification pinned to the real hostname
+    auth: { user: env.emailUser, pass: env.emailAppPassword },
+    // Without explicit timeouts, a stalled connection (common right after a free-tier Render
+    // instance wakes from sleep, before outbound networking is fully up, or when a port is
+    // silently firewalled) hangs until the client's own axios timeout gives up — a generic
+    // error with no cause. These make each candidate fail fast so probing stays quick.
+    connectionTimeout: 8_000,
+    greetingTimeout: 8_000,
+    socketTimeout: 15_000,
+    // Pooling keeps the connection (and its TLS/auth handshake) open between sends instead of
+    // paying that cost every time — a real speedup for back-to-back sends in the same warm
+    // process. The first send after a cold start still pays it once.
+    pool: true,
+    maxConnections: 1,
+    maxMessages: 50,
+  });
 }
 
 export class MailerUnavailableError extends Error {
@@ -32,36 +60,38 @@ export class MailerUnavailableError extends Error {
 }
 
 let transporterPromise = null;
+async function probeTransporter() {
+  const addresses = await resolveGmailIPv4Addresses();
+  const attempts = [];
+  for (const host of addresses) {
+    for (const candidate of CANDIDATE_PORTS) {
+      attempts.push({ host, ...candidate });
+    }
+  }
+
+  const errors = [];
+  for (const { host, port, secure } of attempts) {
+    const candidate = buildTransport(host, { port, secure });
+    try {
+      await candidate.verify(); // actually opens the connection and authenticates
+      console.log(`[mailer] connected via ${host}:${port} (${secure ? 'TLS' : 'STARTTLS'})`);
+      return candidate;
+    } catch (err) {
+      candidate.close();
+      errors.push(`${host}:${port} — ${err.message}`);
+    }
+  }
+
+  throw new Error(`Could not reach Gmail SMTP on any address/port. Tried:\n${errors.join('\n')}`);
+}
+
 function getTransporter() {
   if (!env.emailUser || !env.emailAppPassword) return null;
   if (!transporterPromise) {
-    transporterPromise = resolveGmailIPv4().then(
-      (ip) =>
-        nodemailer.createTransport({
-          host: ip,
-          port: GMAIL_SMTP_PORT,
-          secure: true,
-          tls: { servername: GMAIL_SMTP_HOST },
-          auth: { user: env.emailUser, pass: env.emailAppPassword },
-          // Without explicit timeouts, a stalled connection (common right after a free-tier
-          // Render instance wakes from sleep, before outbound networking is fully up) hangs
-          // until the client's own axios timeout gives up — a generic error with no cause.
-          // These make it fail fast with a clear reason instead.
-          connectionTimeout: 15_000,
-          greetingTimeout: 15_000,
-          socketTimeout: 20_000,
-          // Pooling keeps the connection (and its TLS/auth handshake) open between sends
-          // instead of paying that cost every time — a real speedup for back-to-back sends
-          // in the same warm process. The first send after a cold start still pays it once.
-          pool: true,
-          maxConnections: 1,
-          maxMessages: 50,
-        }),
-      (err) => {
-        transporterPromise = null; // let the next send retry the DNS resolution
-        throw err;
-      },
-    );
+    transporterPromise = probeTransporter().catch((err) => {
+      transporterPromise = null; // let the next send retry the whole probe
+      throw err;
+    });
   }
   return transporterPromise;
 }
