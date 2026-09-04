@@ -39,10 +39,10 @@ This app turns that same spreadsheet into a **live, visual dashboard** — no ch
 
 ## Screenshots
 
-> _Add your own screenshots here — drop image files into `docs/screenshots/` and reference them below, e.g._
-> `![Dashboard overview](docs/screenshots/dashboard.png)`
+![Dashboard overview](docs/screenshots/dashboard.png)
+_Live manpower, dispatch, and completion stats with filterable date-range charts._
 
-<!-- ![Dashboard overview](docs/screenshots/dashboard.png) -->
+<!-- Add more screenshots to docs/screenshots/ and reference them the same way, e.g. -->
 <!-- ![Email composer](docs/screenshots/email.png) -->
 
 ## Tech stack
