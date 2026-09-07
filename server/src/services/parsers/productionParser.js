@@ -28,6 +28,19 @@ function buildDateColumnPairs(headerRow) {
   });
 }
 
+// A single day's increment claiming to account for almost the entire running cumulative total
+// is never real production data mid-month — it's the signature of catching the source sheet in
+// a momentary bad state (e.g. synced while someone was mid-edit on that cell). Seen in practice:
+// a cumulative of 4937 recorded with dailyIncrementQty also 4937, which would only make sense if
+// that were day one of tracking. Guard against it rather than let one bad cell inflate every
+// chart and total built from this stage for as long as the sheet happens to hold that value.
+const SUSPICIOUS_INCREMENT_RATIO = 0.9;
+const SUSPICIOUS_INCREMENT_FLOOR = 50;
+
+function isSuspiciousIncrement(dailyIncrementQty, cumulativeQty) {
+  return cumulativeQty >= SUSPICIOUS_INCREMENT_FLOOR && dailyIncrementQty >= cumulativeQty * SUSPICIOUS_INCREMENT_RATIO;
+}
+
 export function parseProgressSheet(rows, client, sourceTab) {
   const records = [];
   const warnings = [];
@@ -56,9 +69,18 @@ export function parseProgressSheet(rows, client, sourceTab) {
         const cumulativeQty = row[cumulativeCol];
         if (typeof cumulativeQty !== 'number') return;
 
-        const dailyIncrementQty = incrementCol !== null && typeof row[incrementCol] === 'number'
+        let dailyIncrementQty = incrementCol !== null && typeof row[incrementCol] === 'number'
           ? row[incrementCol]
           : 0;
+
+        if (isSuspiciousIncrement(dailyIncrementQty, cumulativeQty)) {
+          warnings.push(
+            `Suspicious daily increment for ${client} ${stage} on ${date.toISOString().slice(0, 10)}: ` +
+              `increment ${dailyIncrementQty} is implausibly close to the cumulative total ${cumulativeQty} ` +
+              `(row ${r}, col ${incrementCol}) — treated as 0 rather than trusted.`,
+          );
+          dailyIncrementQty = 0;
+        }
 
         records.push({
           date,
