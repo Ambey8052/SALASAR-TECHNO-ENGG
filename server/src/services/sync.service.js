@@ -77,6 +77,26 @@ async function syncDispatchTab(tabTitle, log) {
       }));
       const result = await DispatchRecord.bulkWrite(ops, { ordered: false });
       log.rowsUpserted += (result.upsertedCount || 0) + (result.modifiedCount || 0);
+
+      // Unlike Manpower/Production (keyed by date+category, which self-heals every sync no
+      // matter where in the sheet that data now sits), this collection's uniqueness key
+      // includes sourceRowIndex — and the sheet's row layout shifts as it's live-edited (a
+      // project's row moves down when rows are inserted above it). A sync only ever upserts
+      // the rows it currently sees, so it can't tell "this row moved" from "this is new" —
+      // the record at the row's old position is left behind, silently double-counted in every
+      // total forever. Deleting anything for this tab that the current parse didn't just
+      // touch keeps the DB an exact mirror of the sheet, closing that gap for good.
+      const currentPairs = records.map((rec) => ({ sourceRowIndex: rec.sourceRowIndex, date: rec.date }));
+      const deleteResult = await DispatchRecord.deleteMany({
+        sourceTab: tabTitle,
+        $nor: currentPairs,
+      });
+      if (deleteResult.deletedCount > 0) {
+        log.issues.push({
+          tab: tabTitle,
+          message: `Removed ${deleteResult.deletedCount} stale record(s) left behind by a row position that shifted since a previous sync.`,
+        });
+      }
     }
     log.tabsProcessed.push(tabTitle);
   } catch (err) {
