@@ -10,13 +10,41 @@ import { ProductionTrendChart, ProductionStageChart } from '../components/dashbo
 import { DispatchTrendChart, DispatchClientChart } from '../components/dashboard/DispatchChart';
 import { InsightsPanel } from '../components/dashboard/InsightsPanel';
 import { SyncStatusBadge } from '../components/dashboard/SyncStatusBadge';
+import { SynopsisView } from '../components/dashboard/SynopsisView';
 import { useSyncSocket } from '../hooks/useSyncSocket';
 import { useAuth } from '../context/AuthContext';
 import { PC_HSD_EMAIL } from '../lib/constants';
 
 const UNIT_LABEL = { HSD: 'HSD', BU: 'Bhilai' };
 
+const VIEWS = [
+  { value: 'overview', label: 'Overview' },
+  { value: 'synopsis', label: 'Synopsis Dispatch' },
+];
+
+function ViewToggle({ view, onChange }) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg p-0.5" style={{ background: 'var(--surface-2)' }}>
+      {VIEWS.map((option) => (
+        <button
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          aria-pressed={view === option.value}
+          className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+          style={{
+            background: view === option.value ? 'var(--series-1)' : 'transparent',
+            color: view === option.value ? '#ffffff' : 'var(--text-secondary)',
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Dashboard() {
+  const [view, setView] = useState('overview');
   const [preset, setPreset] = useState('Month to date');
   const [range, setRange] = useState(PRESETS[3].getRange());
   const [businessUnit, setBusinessUnit] = useState('HSD');
@@ -57,116 +85,126 @@ export function Dashboard() {
 
   const summary = summaryQuery.data;
   const productionAvailable = summary?.production?.available ?? false;
+  const isSynopsis = view === 'synopsis';
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {UNIT_LABEL[businessUnit]} Overview
+            {isSynopsis ? 'Synopsis Dispatch' : `${UNIT_LABEL[businessUnit]} Overview`}
           </h1>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {formatRangeLabel(range)}
+            {isSynopsis ? 'Department-wise dispatch against plan, from the monthly synopsis reports' : formatRangeLabel(range)}
           </p>
         </div>
-        {user?.email !== PC_HSD_EMAIL && <SyncStatusBadge status={syncStatusQuery.data} onSynced={handleSynced} />}
-      </div>
-
-      <div className="mb-6">
-        <FilterBar
-          activePreset={preset}
-          range={range}
-          onPresetChange={(label, r) => {
-            setPreset(label);
-            setRange(r);
-          }}
-          businessUnit={businessUnit}
-          onBusinessUnitChange={setBusinessUnit}
-        />
-      </div>
-
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-        Snapshot &amp; {formatRangeLabel(range)}
-      </div>
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-        className="mb-6 flex items-stretch gap-3 overflow-x-auto"
-      >
-        <StatCard
-          compact
-          label="Manpower today"
-          value={summary?.manpower.today ?? '—'}
-          unit="on site"
-          accent="var(--series-1)"
-        />
-        {summary?.dispatch?.available && (
-          <StatCard
-            compact
-            label={
-              summary.dispatch.lastRecordedDay?.date
-                ? `Dispatched (${format(new Date(summary.dispatch.lastRecordedDay.date), 'd MMM')})`
-                : 'Dispatched'
-            }
-            value={summary?.dispatch.lastRecordedDay?.total ?? '—'}
-            unit="MT"
-            accent="var(--series-2)"
-          />
-        )}
-        {productionAvailable && (
-          <>
-            <StatCard
-              compact
-              label={`Completed (${preset})`}
-              value={summary?.production.completedInRange ?? '—'}
-              unit="MT"
-              accent="var(--series-3)"
-            />
-            <StatCard
-              compact
-              label={`Dispatched (${preset})`}
-              value={summary?.dispatch.inRange ?? '—'}
-              unit="MT"
-              accent="var(--series-2)"
-            />
-          </>
-        )}
-      </motion.div>
-
-      {summary && !productionAvailable && (
-        <div className="mb-6 rounded-xl border px-4 py-3 text-sm" style={{ color: 'var(--text-muted)', background: 'var(--surface-1)' }}>
-          Production and dispatch tracking for Bhilai isn't connected to a data source yet — only manpower is available for this unit right now.
+        <div className="flex flex-wrap items-center gap-3">
+          <ViewToggle view={view} onChange={setView} />
+          {user?.email !== PC_HSD_EMAIL && <SyncStatusBadge status={syncStatusQuery.data} onSynced={handleSynced} />}
         </div>
-      )}
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {summary && (
-          <>
-            <ManpowerCategoryChart byCategory={summary.manpower.byCategory} />
-            <ManpowerTrendChart trendByCategory={summary.manpower.trendByCategory} />
+      {isSynopsis && <SynopsisView />}
+
+      {!isSynopsis && (
+        <>
+          <div className="mb-6">
+            <FilterBar
+              activePreset={preset}
+              range={range}
+              onPresetChange={(label, r) => {
+                setPreset(label);
+                setRange(r);
+              }}
+              businessUnit={businessUnit}
+              onBusinessUnitChange={setBusinessUnit}
+            />
+          </div>
+
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+            Snapshot &amp; {formatRangeLabel(range)}
+          </div>
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
+            className="mb-6 flex items-stretch gap-3 overflow-x-auto"
+          >
+            <StatCard
+              compact
+              label="Manpower today"
+              value={summary?.manpower.today ?? '—'}
+              unit="on site"
+              accent="var(--series-1)"
+            />
+            {summary?.dispatch?.available && (
+              <StatCard
+                compact
+                label={
+                  summary.dispatch.lastRecordedDay?.date
+                    ? `Dispatched (${format(new Date(summary.dispatch.lastRecordedDay.date), 'd MMM')})`
+                    : 'Dispatched'
+                }
+                value={summary?.dispatch.lastRecordedDay?.total ?? '—'}
+                unit="MT"
+                accent="var(--series-2)"
+              />
+            )}
             {productionAvailable && (
               <>
-                <ProductionStageChart byStageByClient={summary.production.byStageByClient} />
-                <ProductionTrendChart trendByClient={summary.production.trendByClient} byClient={summary.production.byClient} />
-                <DispatchClientChart byClient={summary.dispatch.byClient} />
-                <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />
+                <StatCard
+                  compact
+                  label={`Completed (${preset})`}
+                  value={summary?.production.completedInRange ?? '—'}
+                  unit="MT"
+                  accent="var(--series-3)"
+                />
+                <StatCard
+                  compact
+                  label={`Dispatched (${preset})`}
+                  value={summary?.dispatch.inRange ?? '—'}
+                  unit="MT"
+                  accent="var(--series-2)"
+                />
               </>
             )}
-          </>
-        )}
-      </div>
+          </motion.div>
 
-      {summary && (
-        <div className="mt-4">
-          <InsightsPanel params={params} />
-        </div>
-      )}
+          {summary && !productionAvailable && (
+            <div className="mb-6 rounded-xl border px-4 py-3 text-sm" style={{ color: 'var(--text-muted)', background: 'var(--surface-1)' }}>
+              Production and dispatch tracking for Bhilai isn't connected to a data source yet — only manpower is available for this unit right now.
+            </div>
+          )}
 
-      {summaryQuery.isLoading && (
-        <div className="mt-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-          Loading dashboard…
-        </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {summary && (
+              <>
+                <ManpowerCategoryChart byCategory={summary.manpower.byCategory} />
+                <ManpowerTrendChart trendByCategory={summary.manpower.trendByCategory} />
+                {productionAvailable && (
+                  <>
+                    <ProductionStageChart byStageByClient={summary.production.byStageByClient} />
+                    <ProductionTrendChart trendByClient={summary.production.trendByClient} byClient={summary.production.byClient} />
+                    <DispatchClientChart byClient={summary.dispatch.byClient} />
+                    <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {summary && (
+            <div className="mt-4">
+              <InsightsPanel params={params} />
+            </div>
+          )}
+
+          {summaryQuery.isLoading && (
+            <div className="mt-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+              Loading dashboard…
+            </div>
+          )}
+        </>
       )}
     </div>
   );

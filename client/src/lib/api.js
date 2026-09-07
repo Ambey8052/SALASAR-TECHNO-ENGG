@@ -30,6 +30,11 @@ export async function fetchHsdInsights(params) {
   return data;
 }
 
+export async function fetchSynopsisSummary(params) {
+  const { data } = await api.get('/dashboard/synopsis', { params });
+  return data;
+}
+
 export async function fetchManpowerRecords(params) {
   const { data } = await api.get('/dashboard/manpower', { params });
   return data;

@@ -32,6 +32,10 @@ export const env = {
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
 
   hsdSpreadsheetId: required('HSD_SPREADSHEET_ID', '1-O9T8zA4yAFYzq9LW2fgn5hIdy7MsAPq'),
+  // Drive folder holding the monthly Synopsis Dispatch workbooks — one .xlsx per month,
+  // separate from the single live HSD workbook above. Every file in it is read on each sync,
+  // so a new month appears on the dashboard as soon as it is dropped in the folder.
+  synopsisFolderId: process.env.SYNOPSIS_FOLDER_ID || '1RBlqtBL3l2qnyKxRzF0FZ_p7ruYKQRni',
   syncIntervalMinutes: Number(process.env.SYNC_INTERVAL_MINUTES || 10),
 
   geminiApiKey: process.env.GEMINI_API_KEY || null,
