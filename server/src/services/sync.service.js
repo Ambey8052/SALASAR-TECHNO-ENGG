@@ -181,18 +181,30 @@ async function syncSynopsisMonth(file, log) {
 }
 
 async function syncSynopsisFolder(log) {
-  if (!env.synopsisFolderId) return;
+  // Never return silently. A sync that skips this step without saying so reports plain
+  // "success" while the Synopsis Dispatch view stays empty, and there is then nothing
+  // anywhere — badge, log or database — explaining why.
+  if (!env.synopsisFolderId) {
+    log.issues.push({ tab: 'Synopsis', message: 'SYNOPSIS_FOLDER_ID is empty, so the monthly synopsis workbooks were skipped.' });
+    return;
+  }
 
   let files;
   try {
     files = await listFolderWorkbooks(env.synopsisFolderId);
   } catch (err) {
-    log.issues.push({ tab: 'Synopsis', message: `Could not list the synopsis folder: ${err.message}` });
+    log.issues.push({
+      tab: 'Synopsis',
+      message: `Could not list the synopsis folder ${env.synopsisFolderId}: ${err.message}. Check the account connected for Drive sync can open that folder.`,
+    });
     return;
   }
 
   if (files.length === 0) {
-    log.issues.push({ tab: 'Synopsis', message: 'The synopsis Drive folder is empty or not shared with the connected account.' });
+    log.issues.push({
+      tab: 'Synopsis',
+      message: `The synopsis Drive folder ${env.synopsisFolderId} returned no files — it is empty, or not shared with the account connected for Drive sync.`,
+    });
     return;
   }
 

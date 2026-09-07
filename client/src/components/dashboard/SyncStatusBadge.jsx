@@ -15,6 +15,7 @@ export function SyncStatusBadge({ status, onSynced }) {
   const { user } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   if (!status) return null;
 
@@ -37,6 +38,8 @@ export function SyncStatusBadge({ status, onSynced }) {
 
   const log = status.latestSync;
   const dotColor = STATUS_COLOR[log?.status] || 'var(--text-muted)';
+  const issues = log?.issues ?? [];
+  const synopsisTabs = (log?.tabsProcessed ?? []).filter((tab) => tab.startsWith('Synopsis/'));
 
   async function handleSyncNow() {
     setSyncing(true);
@@ -58,7 +61,16 @@ export function SyncStatusBadge({ status, onSynced }) {
 
   return (
     <div className="relative flex items-center gap-3">
-      <div className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+      {/* The dot alone can only say "something was wrong", never what. Opening the badge shows
+          the run's own log, so an empty dashboard can be traced to the step that failed
+          without going to the database for it. */}
+      <button
+        onClick={() => setDetailsOpen((v) => !v)}
+        aria-expanded={detailsOpen}
+        title="Show what the last sync did"
+        className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium"
+        style={{ color: 'var(--text-secondary)' }}
+      >
         <AnimatePresence mode="wait">
           <motion.span
             key={syncing ? 'syncing' : dotColor}
@@ -71,7 +83,12 @@ export function SyncStatusBadge({ status, onSynced }) {
         {log?.finishedAt
           ? `Synced ${formatDistanceToNow(new Date(log.finishedAt), { addSuffix: true })}`
           : 'Awaiting first sync'}
-      </div>
+        {issues.length > 0 && (
+          <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--status-warning)', color: '#ffffff' }}>
+            {issues.length}
+          </span>
+        )}
+      </button>
 
       {user?.role === 'admin' && (
         <motion.button
@@ -91,6 +108,43 @@ export function SyncStatusBadge({ status, onSynced }) {
           style={{ background: 'var(--surface-2)', color: 'var(--status-critical)' }}
         >
           {error}
+        </div>
+      )}
+
+      {detailsOpen && log && (
+        <div
+          className="absolute top-full right-0 z-30 mt-2 w-80 rounded-xl border p-3 text-xs shadow-lg"
+          style={{ background: 'var(--surface-2)' }}
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="font-semibold capitalize" style={{ color: 'var(--text-primary)' }}>
+              {log.status} — {log.trigger} sync
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>{log.rowsUpserted} rows</span>
+          </div>
+
+          <div className="mb-2" style={{ color: 'var(--text-secondary)' }}>
+            {synopsisTabs.length > 0
+              ? `Synopsis Dispatch: read ${synopsisTabs.length} month${synopsisTabs.length === 1 ? '' : 's'} (${synopsisTabs
+                  .map((t) => t.replace('Synopsis/', ''))
+                  .join(', ')}).`
+              : 'Synopsis Dispatch: no monthly workbooks were read in this run.'}
+          </div>
+
+          {issues.length === 0 ? (
+            <div style={{ color: 'var(--text-muted)' }}>No issues reported.</div>
+          ) : (
+            <ul className="max-h-56 space-y-1.5 overflow-auto">
+              {issues.map((issue, i) => (
+                <li key={`${issue.tab}-${i}`} style={{ color: 'var(--text-secondary)' }}>
+                  <span className="font-medium" style={{ color: 'var(--status-warning)' }}>
+                    {issue.tab}
+                  </span>
+                  : {issue.message}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>
