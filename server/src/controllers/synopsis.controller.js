@@ -9,7 +9,50 @@ function monthLabel(month) {
   return `${MONTH_LABELS[Number(mm) - 1]} ${year}`;
 }
 
+function dayLabel(date) {
+  return `${date.getUTCDate()} ${MONTH_LABELS[date.getUTCMonth()].slice(0, 3)} ${date.getUTCFullYear()}`;
+}
+
 const isoDay = (date) => date.toISOString().slice(0, 10);
+
+// The view can be scoped three ways. A plain string or null is still accepted so the offline
+// checker (scripts/checkSynopsis.js) keeps working unchanged.
+function normalizeScope(scope) {
+  if (!scope) return { type: 'all' };
+  if (typeof scope === 'string') return { type: 'month', month: scope };
+  if (scope.from && scope.to) {
+    const from = new Date(scope.from);
+    const to = new Date(scope.to);
+    from.setUTCHours(0, 0, 0, 0);
+    to.setUTCHours(23, 59, 59, 999);
+    return { type: 'range', from, to };
+  }
+  if (scope.month && scope.month !== 'all') return { type: 'month', month: scope.month };
+  return { type: 'all' };
+}
+
+// How much of each month's plan belongs to the current scope. A month sitting wholly inside
+// counts for all of it; a month the range only clips counts for the share of its reported days
+// that the range actually contains, and its plan is pro-rated by that same share.
+//
+// Pro-rating is the only honest option here: the workbooks set targets per month, never per
+// day, so "planned" for 15 Apr – 20 May has no figure of its own in the source. Spreading each
+// month's target evenly across the days it reported matches how the plan-pace line already
+// works, and keeps achieved-% meaningful for a part-month window instead of comparing a few
+// days of dispatch against a whole month's target.
+function buildPlanFactors(scopedMonths, scope) {
+  const factors = new Map();
+  for (const doc of scopedMonths) {
+    if (scope.type !== 'range') {
+      factors.set(doc.month, 1);
+      continue;
+    }
+    const total = doc.coveredDates.length;
+    const inside = doc.coveredDates.filter((d) => d >= scope.from && d <= scope.to).length;
+    factors.set(doc.month, total > 0 ? inside / total : 0);
+  }
+  return factors;
+}
 
 // Everything here is computed in JS rather than through aggregation pipelines. The whole
 // dataset is one document per month and a few hundred dispatch rows, so the cost is
@@ -54,21 +97,39 @@ function buildCumulative(dailySeries, coveredDates, plannedTotal) {
   });
 }
 
-function buildDepartmentRows(monthDocs) {
+// Planned comes from the month documents (pro-rated by `factors`), dispatched from the
+// day-level records. Dispatched has to come from the records because they are the only thing
+// that can be cut to an arbitrary date range — a month document only knows its own total. For
+// a whole month the two agree exactly, since a month's stored total is the sum of those same
+// records.
+//
+// Seeding from the plan first matters: a department that was planned but dispatched nothing in
+// the window still has to appear, as a bar at zero against its target, rather than silently
+// dropping out of the comparison.
+function buildDepartmentRows(monthDocs, records, factors) {
   // A department can hold two rows in one month (June onwards splits Adani and RIL into an
   // in-house and a buyout line) and one row in each of several months. Both are folded into a
   // single figure per department here; the in-house/buyout split is its own breakdown below.
   const rows = new Map();
+  const ensure = (department, category) => {
+    if (!rows.has(department)) {
+      rows.set(department, { department, category, planned: 0, dispatched: 0, months: 0 });
+    }
+    return rows.get(department);
+  };
+
   for (const doc of monthDocs) {
+    const factor = factors.get(doc.month) ?? 1;
+    if (factor === 0) continue;
     for (const dept of doc.departments) {
-      if (!rows.has(dept.department)) {
-        rows.set(dept.department, { department: dept.department, category: dept.category, planned: 0, dispatched: 0, months: 0 });
-      }
-      const row = rows.get(dept.department);
-      row.planned += dept.planned || 0;
-      row.dispatched += dept.dispatched;
+      const row = ensure(dept.department, dept.category);
+      row.planned += (dept.planned || 0) * factor;
       row.months += 1;
     }
+  }
+
+  for (const record of records) {
+    ensure(record.department, record.category).dispatched += record.qty;
   }
 
   return [...rows.values()]
@@ -80,19 +141,40 @@ function buildDepartmentRows(monthDocs) {
     .sort((a, b) => b.dispatched - a.dispatched);
 }
 
-function buildModeRows(monthDocs) {
+function buildModeRows(monthDocs, records, factors) {
   const rows = new Map();
+  const ensure = (mode) => {
+    if (!rows.has(mode)) rows.set(mode, { mode, planned: 0, dispatched: 0 });
+    return rows.get(mode);
+  };
+
   for (const doc of monthDocs) {
+    const factor = factors.get(doc.month) ?? 1;
+    if (factor === 0) continue;
     for (const dept of doc.departments) {
-      if (!rows.has(dept.mode)) rows.set(dept.mode, { mode: dept.mode, planned: 0, dispatched: 0 });
-      const row = rows.get(dept.mode);
-      row.planned += dept.planned || 0;
-      row.dispatched += dept.dispatched;
+      ensure(dept.mode).planned += (dept.planned || 0) * factor;
     }
   }
+
+  for (const record of records) {
+    ensure(record.mode).dispatched += record.qty;
+  }
+
   return [...rows.values()]
     .map((row) => ({ ...row, achievedPct: row.planned > 0 ? (row.dispatched / row.planned) * 100 : null }))
     .sort((a, b) => b.dispatched - a.dispatched);
+}
+
+// Departments biggest-first over the whole history, not just the current scope, so the grid
+// below keeps the same rows in the same order whatever the filter is set to.
+function allTimeDepartmentOrder(monthDocs) {
+  const totals = new Map();
+  for (const doc of monthDocs) {
+    for (const dept of doc.departments) {
+      totals.set(dept.department, (totals.get(dept.department) || 0) + dept.dispatched);
+    }
+  }
+  return [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([department]) => department);
 }
 
 // A department-by-month grid. Every month gets an entry for every department, null where that
@@ -182,17 +264,30 @@ export const EMPTY_SYNOPSIS = {
 
 // Split out from the request handler so the whole reshape can be exercised against the real
 // workbooks without a database in front of it (see scripts/checkSynopsis.js).
-export function buildSynopsisPayload(allMonths, records, requestedMonth) {
-  const scopedMonths = requestedMonth ? allMonths.filter((m) => m.month === requestedMonth) : allMonths;
+export function buildSynopsisPayload(allMonths, records, requestedScope) {
+  const scope = normalizeScope(requestedScope);
+
+  const scopedMonths =
+    scope.type === 'month'
+      ? allMonths.filter((m) => m.month === scope.month)
+      : scope.type === 'range'
+        // A month is in scope when the range touches any of its reported days, so a range
+        // ending mid-month still brings that month's plan in (pro-rated below).
+        ? allMonths.filter((m) => m.coveredDates.some((d) => d >= scope.from && d <= scope.to))
+        : allMonths;
+
+  const factors = buildPlanFactors(scopedMonths, scope);
 
   const categoryTotals = sumBy(records, (r) => r.category, (r) => r.qty);
   const dispatched = [...categoryTotals.values()].reduce((sum, v) => sum + v, 0);
   const categoryKeys = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1]).map(([key]) => key);
 
   const dailySeries = buildDailySeries(records, categoryKeys);
-  const coveredDates = scopedMonths.flatMap((m) => m.coveredDates);
-  const plannedTotal = scopedMonths.reduce((sum, m) => sum + (m.plannedTotal || 0), 0);
-  const byDepartment = buildDepartmentRows(scopedMonths);
+  const coveredDates = scopedMonths
+    .flatMap((m) => m.coveredDates)
+    .filter((d) => scope.type !== 'range' || (d >= scope.from && d <= scope.to));
+  const plannedTotal = scopedMonths.reduce((sum, m) => sum + (m.plannedTotal || 0) * (factors.get(m.month) ?? 1), 0);
+  const byDepartment = buildDepartmentRows(scopedMonths, records, factors);
 
   const bestDay = dailySeries.reduce((best, day) => (best === null || day.total > best.total ? day : best), null);
 
@@ -226,12 +321,32 @@ export function buildSynopsisPayload(allMonths, records, requestedMonth) {
       label: monthLabel(m.month),
       shortLabel: monthLabel(m.month).slice(0, 3),
       coveredDays: m.coveredDates.length,
+      // Both ends of each month's reported window, so the date picker can refuse days the
+      // workbooks say nothing about instead of returning an empty dashboard.
+      firstDate: m.coveredDates.length > 0 ? m.coveredDates[0] : null,
       lastDate: m.coveredDates.length > 0 ? m.coveredDates[m.coveredDates.length - 1] : null,
       sourceFile: m.sourceFile,
     })),
     scope: {
-      month: requestedMonth || 'all',
-      label: requestedMonth ? monthLabel(requestedMonth) : 'April – August 2026',
+      type: scope.type,
+      month: scope.type === 'month' ? scope.month : 'all',
+      from: scope.type === 'range' ? scope.from : null,
+      to: scope.type === 'range' ? scope.to : null,
+      // Derived from the months actually present rather than hard-coded, so the label stays
+      // right the moment a new month's workbook lands in the folder.
+      label:
+        scope.type === 'month'
+          ? monthLabel(scope.month)
+          : scope.type === 'range'
+            ? `${dayLabel(scope.from)} – ${dayLabel(scope.to)}`
+            : allMonths.length === 0
+              ? 'All months'
+              : allMonths.length === 1
+                ? monthLabel(allMonths[0].month)
+                : `${monthLabel(allMonths[0].month)} – ${monthLabel(allMonths[allMonths.length - 1].month)}`,
+      // Says whether "planned" for this scope is a figure the workbooks state outright or one
+      // spread across part of a month, so the UI can label it honestly.
+      plannedIsProRated: scope.type === 'range' && [...factors.values()].some((f) => f > 0 && f < 1),
     },
     kpis: {
       planned: plannedTotal,
@@ -255,11 +370,11 @@ export function buildSynopsisPayload(allMonths, records, requestedMonth) {
       share: dispatched > 0 ? (categoryTotals.get(category) / dispatched) * 100 : 0,
     })),
     byDepartment,
-    byMode: buildModeRows(scopedMonths),
+    byMode: buildModeRows(scopedMonths, records, factors),
     daily: dailySeries,
     cumulative: buildCumulative(dailySeries, coveredDates, plannedTotal),
     monthlyTrend,
-    departmentMatrix: buildDepartmentMatrix(allMonths, buildDepartmentRows(allMonths).map((d) => d.department)),
+    departmentMatrix: buildDepartmentMatrix(allMonths, allTimeDepartmentOrder(allMonths)),
     ...buildTowerSummary(scopedMonths),
     warnings: scopedMonths.flatMap((m) => m.warnings || []),
   };
@@ -268,17 +383,35 @@ export function buildSynopsisPayload(allMonths, records, requestedMonth) {
 }
 
 export async function getSynopsisSummary(req, res) {
-  const requestedMonth = req.query.month && req.query.month !== 'all' ? req.query.month : null;
+  const { from, to, month } = req.query;
+  const requestedMonth = month && month !== 'all' ? month : null;
+
+  // A range wins over a month if both arrive, since the range is the more specific request.
+  let scope = requestedMonth;
+  if (from && to) {
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      return res.status(400).json({ message: 'from and to must be valid dates (YYYY-MM-DD).' });
+    }
+    if (fromDate > toDate) {
+      return res.status(400).json({ message: 'from must not be after to.' });
+    }
+    scope = { from, to };
+  }
 
   const allMonths = await SynopsisMonth.find().sort({ month: 1 }).lean();
   if (allMonths.length === 0) return res.json(EMPTY_SYNOPSIS);
 
-  if (requestedMonth && !allMonths.some((m) => m.month === requestedMonth)) {
+  if (requestedMonth && !scope?.from && !allMonths.some((m) => m.month === requestedMonth)) {
     return res.status(404).json({ message: `No synopsis data for ${requestedMonth}.` });
   }
 
-  const months = requestedMonth ? [requestedMonth] : allMonths.map((m) => m.month);
-  const records = await SynopsisDispatchRecord.find({ month: { $in: months } }).sort({ date: 1 }).lean();
+  const query = scope?.from
+    ? { date: { $gte: new Date(`${from}T00:00:00.000Z`), $lte: new Date(`${to}T23:59:59.999Z`) } }
+    : { month: { $in: requestedMonth ? [requestedMonth] : allMonths.map((m) => m.month) } };
 
-  return res.json(buildSynopsisPayload(allMonths, records, requestedMonth));
+  const records = await SynopsisDispatchRecord.find(query).sort({ date: 1 }).lean();
+
+  return res.json(buildSynopsisPayload(allMonths, records, scope));
 }

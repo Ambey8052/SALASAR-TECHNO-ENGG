@@ -18,7 +18,10 @@ function useIsNarrowViewport(breakpointPx = 640) {
   return isNarrow;
 }
 
-export function DateRangePicker({ isActive, value, onApply }) {
+// `disabled` and `label` are optional. They default to the plant dashboard's behaviour — no
+// future dates, "Custom range" on the button — so existing callers are unaffected; the
+// Synopsis view passes its own so the calendar refuses days its workbooks never reported on.
+export function DateRangePicker({ isActive, value, onApply, disabled, label = 'Custom range', defaultMonth }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const containerRef = useRef(null);
@@ -66,7 +69,7 @@ export function DateRangePicker({ isActive, value, onApply }) {
       >
         {isActive && value?.from && value?.to
           ? `${format(value.from, 'd MMM')} – ${format(value.to, 'd MMM')}`
-          : 'Custom range'}
+          : label}
       </button>
 
       {open && (
@@ -80,8 +83,10 @@ export function DateRangePicker({ isActive, value, onApply }) {
             numberOfMonths={isNarrow ? 1 : 2}
             selected={draft}
             onSelect={handleSelect}
-            defaultMonth={draft?.from}
-            disabled={{ after: new Date() }}
+            defaultMonth={draft?.from ?? defaultMonth}
+            disabled={disabled ?? { after: new Date() }}
+            startMonth={disabled?.before}
+            endMonth={disabled?.after}
           />
           <div className="mt-1 flex items-center justify-between border-t px-1 pt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
             <span>
