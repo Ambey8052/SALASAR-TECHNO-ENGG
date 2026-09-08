@@ -353,22 +353,74 @@ export function CumulativePaceChart({ cumulative, scopeLabel }) {
 
 /* ------------------------------------------------------------------- share of ---- */
 
-function DonutChart({ data, colorOf, nameKey, valueKey, height = 260 }) {
+const RADIAN = Math.PI / 180;
+
+// Percentages sit just outside the ring in ordinary text ink rather than inside the wedge in
+// white. Three of the eight group colours are light enough that white on them fails contrast,
+// so an inside label would be unreadable on exactly those slices.
+function renderPercentLabel({ cx, cy, midAngle, outerRadius, percent }) {
+  // A wedge under ~4% is too narrow to own a label without colliding with its neighbours.
+  // Those groups still carry their exact share in the legend and on hover.
+  if (percent < 0.04) return null;
+
+  const radius = outerRadius + 14;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor={x > cx ? 'start' : 'end'}
+      dominantBaseline="central"
+      style={{ fontSize: 11, fontWeight: 600, fill: 'var(--text-secondary)' }}
+    >
+      {`${(percent * 100).toFixed(1)}%`}
+    </text>
+  );
+}
+
+function DonutChart({ data, colorOf, nameKey, valueKey, height = 260, showPercent = false }) {
+  const total = data.reduce((sum, d) => sum + (d[valueKey] || 0), 0);
+
+  // With the shares shown, the ring sits left and the legend becomes a column down the right.
+  // Eight groups make a bottom legend wrap into three cramped rows, and the ring then has no
+  // margin left for its outside labels.
+  const sideLegend = showPercent;
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <PieChart>
+      <PieChart margin={showPercent ? { top: 8, right: 8, bottom: 8, left: 8 } : undefined}>
         <Tooltip content={<SeriesTooltip />} />
-        <Legend wrapperStyle={legendStyle} />
+        <Legend
+          wrapperStyle={sideLegend ? { ...legendStyle, lineHeight: '22px', paddingLeft: 8 } : legendStyle}
+          layout={sideLegend ? 'vertical' : 'horizontal'}
+          align={sideLegend ? 'right' : 'center'}
+          verticalAlign={sideLegend ? 'middle' : 'bottom'}
+          // Every group gets its share here, including the small ones the ring cannot label.
+          formatter={
+            showPercent
+              ? (value, entry) => {
+                  const share = total > 0 ? ((entry?.payload?.[valueKey] || 0) / total) * 100 : 0;
+                  return `${value} · ${share.toFixed(1)}%`;
+                }
+              : undefined
+          }
+        />
         <Pie
           data={data}
           dataKey={valueKey}
           nameKey={nameKey}
-          innerRadius="52%"
-          outerRadius="80%"
+          cx={sideLegend ? '32%' : '50%'}
+          innerRadius={showPercent ? '46%' : '52%'}
+          outerRadius={showPercent ? '68%' : '80%'}
           paddingAngle={2}
           // A surface-coloured ring keeps neighbouring wedges from reading as one shape.
           stroke="var(--surface-1)"
           strokeWidth={2}
+          label={showPercent ? renderPercentLabel : undefined}
+          labelLine={false}
+          isAnimationActive={false}
         >
           {data.map((entry) => (
             <Cell key={entry[nameKey]} fill={colorOf(entry[nameKey])} />
@@ -387,12 +439,13 @@ export function CategoryShareChart({ byCategory }) {
     <ChartCard
       title="Share of tonnage by department group"
       subtitle="How the dispatched tonnage divides across the plant's groups"
+      className="lg:col-span-2"
       footer={top ? `${top.category} is the largest at ${formatPct(top.share)} of everything dispatched.` : null}
     >
       {data.length === 0 ? (
-        <EmptyState height={260}>Nothing dispatched in this period</EmptyState>
+        <EmptyState height={300}>Nothing dispatched in this period</EmptyState>
       ) : (
-        <DonutChart data={data} colorOf={categoryColor} nameKey="category" valueKey="dispatched" />
+        <DonutChart data={data} colorOf={categoryColor} nameKey="category" valueKey="dispatched" height={300} showPercent />
       )}
     </ChartCard>
   );

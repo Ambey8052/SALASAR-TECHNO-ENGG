@@ -6,16 +6,18 @@ import { fetchSynopsisSummary } from '../../lib/api';
 import { StatCard } from './StatCard';
 import {
   CategoryShareChart,
-  CumulativePaceChart,
   DailyDispatchChart,
   DepartmentAchievementChart,
   DepartmentMatrix,
   DepartmentPlanChart,
   DepartmentTable,
-  ModeShareChart,
   MonthlyAchievementChart,
   MonthlyPlanChart,
-  TowerChart,
+  // Switched off on request — the components are still exported from SynopsisCharts.jsx, so
+  // putting any of these back is a matter of restoring its import and its line in the grid:
+  //   CumulativePaceChart  — "Cumulative dispatch against plan pace"
+  //   ModeShareChart       — "In-house, job work and buyout"
+  //   TowerChart           — "Towers and poles dispatched"
 } from './SynopsisCharts';
 import { ACTUAL_COLOR, achievementColor, formatMt, formatMtWhole, formatPct } from './synopsisPalette';
 
@@ -134,27 +136,29 @@ export function SynopsisView() {
         )}
       </motion.div>
 
+      <div className="mb-4">
+        <DepartmentTable byDepartment={data.byDepartment} />
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Month-level charts only earn their space when more than one month is in view. */}
         {month === 'all' && <MonthlyPlanChart monthlyTrend={data.monthlyTrend} />}
         {month === 'all' && <MonthlyAchievementChart monthlyTrend={data.monthlyTrend} />}
 
         <DailyDispatchChart daily={data.daily} categoryKeys={data.categoryKeys} scopeLabel={scope.label} />
-        <CumulativePaceChart cumulative={data.cumulative} scopeLabel={scope.label} />
 
         <CategoryShareChart byCategory={data.byCategory} />
-        <ModeShareChart byMode={data.byMode} />
 
         <DepartmentPlanChart byDepartment={data.byDepartment} />
         <DepartmentAchievementChart byDepartment={data.byDepartment} />
 
         {month === 'all' && <DepartmentMatrix departmentMatrix={data.departmentMatrix} />}
 
+        {/* Switched off on request:
+        <CumulativePaceChart cumulative={data.cumulative} scopeLabel={scope.label} />
+        <ModeShareChart byMode={data.byMode} />
         <TowerChart towers={data.towers} towersByMonth={data.towersByMonth} totals={data.totals} />
-      </div>
-
-      <div className="mt-4">
-        <DepartmentTable byDepartment={data.byDepartment} />
+        */}
       </div>
 
       {data.warnings.length > 0 && (
