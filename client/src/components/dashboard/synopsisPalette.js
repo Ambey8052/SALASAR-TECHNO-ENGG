@@ -1,4 +1,4 @@
-// Colour and formatting shared by every Synopsis Dispatch chart.
+// Colour and formatting shared by every Dispatch Synopsis chart.
 //
 // Categories are painted from a FIXED list, never from their position in a sorted result.
 // The charts re-sort by tonnage and the month filter changes which categories appear at all,

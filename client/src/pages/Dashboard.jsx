@@ -19,7 +19,7 @@ const UNIT_LABEL = { HSD: 'HSD', BU: 'Bhilai' };
 
 const VIEWS = [
   { value: 'overview', label: 'Overview' },
-  { value: 'synopsis', label: 'Synopsis Dispatch' },
+  { value: 'synopsis', label: 'Dispatch Synopsis' },
 ];
 
 function ViewToggle({ view, onChange }) {
@@ -92,7 +92,7 @@ export function Dashboard() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {isSynopsis ? 'Synopsis Dispatch' : `${UNIT_LABEL[businessUnit]} Overview`}
+            {isSynopsis ? 'Dispatch Synopsis' : `${UNIT_LABEL[businessUnit]} Overview`}
           </h1>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             {isSynopsis ? 'Department-wise dispatch against plan, from the monthly synopsis reports' : formatRangeLabel(range)}

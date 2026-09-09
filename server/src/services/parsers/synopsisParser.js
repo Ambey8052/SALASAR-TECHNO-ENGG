@@ -1,4 +1,4 @@
-// Parser for the monthly "Synopsis Dispatch" workbooks (one .xlsx per month, sitting in a
+// Parser for the monthly "Dispatch Synopsis" workbooks (one .xlsx per month, sitting in a
 // Drive folder of their own — separate from the single live HSD workbook the rest of the
 // sync reads).
 //

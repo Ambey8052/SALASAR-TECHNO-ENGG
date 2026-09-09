@@ -1,4 +1,4 @@
-// Offline end-to-end check for the Synopsis Dispatch pipeline: reads local copies of the
+// Offline end-to-end check for the Dispatch Synopsis pipeline: reads local copies of the
 // monthly workbooks, runs them through the same parser and the same payload builder the API
 // uses, and reconciles the result against the figures the spreadsheets compute for
 // themselves. No database and no Drive connection needed.

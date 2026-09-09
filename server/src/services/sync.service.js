@@ -182,7 +182,7 @@ async function syncSynopsisMonth(file, log) {
 
 async function syncSynopsisFolder(log) {
   // Never return silently. A sync that skips this step without saying so reports plain
-  // "success" while the Synopsis Dispatch view stays empty, and there is then nothing
+  // "success" while the Dispatch Synopsis view stays empty, and there is then nothing
   // anywhere — badge, log or database — explaining why.
   if (!env.synopsisFolderId) {
     log.issues.push({ tab: 'Synopsis', message: 'SYNOPSIS_FOLDER_ID is empty, so the monthly synopsis workbooks were skipped.' });

@@ -125,10 +125,10 @@ export function SyncStatusBadge({ status, onSynced }) {
 
           <div className="mb-2" style={{ color: 'var(--text-secondary)' }}>
             {synopsisTabs.length > 0
-              ? `Synopsis Dispatch: read ${synopsisTabs.length} month${synopsisTabs.length === 1 ? '' : 's'} (${synopsisTabs
+              ? `Dispatch Synopsis: read ${synopsisTabs.length} month${synopsisTabs.length === 1 ? '' : 's'} (${synopsisTabs
                   .map((t) => t.replace('Synopsis/', ''))
                   .join(', ')}).`
-              : 'Synopsis Dispatch: no monthly workbooks were read in this run.'}
+              : 'Dispatch Synopsis: no monthly workbooks were read in this run.'}
           </div>
 
           {issues.length === 0 ? (

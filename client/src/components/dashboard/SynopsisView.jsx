@@ -93,7 +93,7 @@ export function SynopsisView() {
   if (query.isLoading) {
     return (
       <div className="mt-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-        Loading synopsis dispatch…
+        Loading dispatch synopsis…
       </div>
     );
   }
@@ -101,7 +101,7 @@ export function SynopsisView() {
   if (query.isError) {
     return (
       <div className="rounded-xl border px-4 py-3 text-sm" style={{ color: 'var(--text-muted)', background: 'var(--surface-1)' }}>
-        Couldn&apos;t load the synopsis dispatch reports. {query.error?.response?.data?.message || query.error?.message}
+        Couldn&apos;t load the dispatch synopsis reports. {query.error?.response?.data?.message || query.error?.message}
       </div>
     );
   }
@@ -109,7 +109,7 @@ export function SynopsisView() {
   if (!data?.available) {
     return (
       <div className="rounded-xl border px-4 py-3 text-sm" style={{ color: 'var(--text-muted)', background: 'var(--surface-1)' }}>
-        No synopsis dispatch workbooks have been read yet. They are picked up from the monthly synopsis folder on the next sync — an
+        No dispatch synopsis workbooks have been read yet. They are picked up from the monthly synopsis folder on the next sync — an
         admin can run one from the badge at the top of this page.
       </div>
     );

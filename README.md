@@ -25,7 +25,7 @@ This app turns that same spreadsheet into a **live, visual dashboard** — no ch
 
 - **Reads the department's existing Google Sheet automatically** — no new data-entry habit for the team, no duplicate systems to keep in sync.
 - **Turns it into real-time, role-aware dashboards** for both HSD and Bhilai units — production by process stage, dispatch by client, manpower by category and shift — all filterable by date range, updating live over Socket.IO.
-- **Reports on the monthly Synopsis Dispatch workbooks** — a second view on the dashboard (the **Synopsis Dispatch** toggle) reads the folder of one-workbook-per-month synopsis reports and charts department-wise dispatch against plan: monthly plan vs actual, achievement against target, day-by-day tonnage by group, cumulative pace, share by group and by in-house/job-work/buyout, per-department performance, a department-by-month grid, and the tower/pole counts.
+- **Reports on the monthly Dispatch Synopsis workbooks** — a second view on the dashboard (the **Dispatch Synopsis** toggle) reads the folder of one-workbook-per-month synopsis reports and charts department-wise dispatch against plan: monthly plan vs actual, achievement against target, day-by-day tonnage by group, cumulative pace, share by group and by in-house/job-work/buyout, per-department performance, a department-by-month grid, and the tower/pole counts.
 - **Builds and sends weekly performance report emails** from inside the dashboard: drag-and-drop images, editable report text, per-client templates (Zetwerk, CNC, COW, Ramboll, and more), and scheduled sending — what used to be a manual, error-prone email-writing task becomes a five-minute job.
 - **Keeps access controlled** — Google OAuth login, admin vs. manager roles, and a dedicated Process Coordinator view.
 
@@ -70,7 +70,7 @@ cd client && npm run dev   # http://localhost:5173
 
 Sign in with Google, then (as an admin) connect Google Drive from **Settings** to start syncing.
 
-### Checking the Synopsis Dispatch figures
+### Checking the Dispatch Synopsis figures
 
 The monthly synopsis workbooks change layout from month to month, so their parser is checked
 against the source files rather than trusted. Download the workbooks from the folder named by

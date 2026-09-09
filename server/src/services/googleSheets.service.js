@@ -57,7 +57,7 @@ export async function listSheetTitles() {
   return workbook.SheetNames.map((title) => ({ title }));
 }
 
-// The monthly Synopsis Dispatch reports are a folder of one-workbook-per-month files rather
+// The monthly Dispatch Synopsis reports are a folder of one-workbook-per-month files rather
 // than tabs inside the single live workbook above, so they are listed and downloaded
 // individually. Unlike loadWorkbook there is no cache here: a sync reads each file exactly
 // once, and holding five workbooks in memory between runs buys nothing.
