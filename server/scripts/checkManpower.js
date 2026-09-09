@@ -84,16 +84,31 @@ headerRowIndexes.forEach((headerRowIdx, i) => {
       .map((idx) => rows[idx])
       .find((row) => row && dateCols.some((c) => detectShiftLabel(row[c]))) ?? null;
 
+  // The daily rows of this block: numbered in the Sr. No column. Rows past the first unnumbered
+  // one belong to the month-averages table underneath and are not daily figures. Worked out
+  // once per block so the column arithmetic below stays a straight re-add of the grid.
+  const srNoCol = headerRow.findIndex((cell) => typeof cell === 'string' && /^s\.?\s*l?r?\.?\s*no/i.test(cell.trim()));
+  const dailyRowIdx = [];
+  let seenNumbered = false;
+  for (let r = headerRowIdx + 1; r < dataEnd; r += 1) {
+    const row = rows[r];
+    if (!row) continue;
+    const label = row.find((cell) => typeof cell === 'string' && cell.trim().length > 0);
+    if (!normalizeManpowerLabel(label)) continue;
+    if (srNoCol !== -1) {
+      if (typeof row[srNoCol] === 'number') seenNumbered = true;
+      else if (seenNumbered) break;
+    }
+    dailyRowIdx.push(r);
+  }
+
   dateCols.forEach((colIdx, k) => {
     const end = dateCols[k + 1] ?? colIdx + stride;
     const key = iso(serialToDate(headerRow[colIdx]));
     let total = 0;
     let weighted = 0;
-    for (let r = headerRowIdx + 1; r < dataEnd; r += 1) {
+    for (const r of dailyRowIdx) {
       const row = rows[r];
-      if (!row) continue;
-      const label = row.find((cell) => typeof cell === 'string' && cell.trim().length > 0);
-      if (!normalizeManpowerLabel(label)) continue;
       for (let c = colIdx; c < end; c += 1) {
         const v = row[c];
         if (typeof v === 'number' && Number.isInteger(v)) {
@@ -158,6 +173,33 @@ for (const [key, shifts] of seen) {
     `${key} has both a shift-less figure and shift-split ones — that day would be counted twice`,
   );
 }
+
+// Two records sharing date + unit + category + shift are stored under one key, so the sync
+// keeps whichever is written last and the other figure is lost without a trace. It means
+// either the same day is listed twice in the sheet, or a summary table is being read as data.
+const keyCounts = new Map();
+for (const record of records) {
+  const key = `${iso(record.date)}|${record.businessUnit}|${record.category}|${record.shift}`;
+  keyCounts.set(key, (keyCounts.get(key) || 0) + 1);
+}
+const duplicateKeys = [...keyCounts.entries()].filter(([, n]) => n > 1);
+check(duplicateKeys.length === 0, `${duplicateKeys.length} duplicated record key(s) — one figure per key will be lost on sync`);
+duplicateKeys.slice(0, 10).forEach(([key, n]) => console.log(`        ${key} appears ${n} times`));
+
+// The same date landing in two different month blocks means a mistyped date header — the day
+// gets one block's figures and some other day gets none.
+const datesByBlock = new Map();
+headerRowIndexes.forEach((headerRowIdx) => {
+  rows[headerRowIdx].forEach((cell) => {
+    if (!isPlausibleDateSerial(cell)) return;
+    const day = iso(serialToDate(cell));
+    if (!datesByBlock.has(day)) datesByBlock.set(day, new Set());
+    datesByBlock.get(day).add(headerRowIdx);
+  });
+});
+const crossBlock = [...datesByBlock.entries()].filter(([, blocks]) => blocks.size > 1);
+check(crossBlock.length === 0, `${crossBlock.length} date(s) appear in more than one month block — check the sheet's date headers`);
+crossBlock.forEach(([day, blocks]) => console.log(`        ${day} appears in blocks at rows ${[...blocks].join(' and ')}`));
 
 const shifts = [...new Set(records.map((r) => r.shift))].map((s) => s ?? 'none');
 console.log(`  shifts: ${shifts.join(', ')}`);

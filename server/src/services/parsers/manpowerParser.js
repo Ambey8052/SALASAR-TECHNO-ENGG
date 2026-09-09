@@ -108,6 +108,19 @@ export function parseManpowerSheet(rows) {
     const dataEnd = headerRowIndexes[i + 1] ?? rows.length;
     const columnMap = buildColumnMap(headerRow, dateColumnIndexes, subHeaderRowIdx !== null ? rows[subHeaderRowIdx] : null);
 
+    // Most months carry a second, smaller table below the daily one holding that month's
+    // AVERAGES per shift — the same "HSD Fab.MNP." labels, but figures like 132.6 and 23.7666
+    // instead of a day's headcount. Left alone, those averages are mapped onto the first few
+    // dates of the month as though they were daily counts, and land on the same record key as
+    // the real day, so whichever is written last wins. Most are filtered out for being
+    // fractional, but an average that happens to come out whole (a flat 11, or a 0) slips
+    // through and silently replaces a real day's figure.
+    //
+    // The two tables are told apart by the Sr. No column: every daily row is numbered, the
+    // summary rows are not. A block that numbers nothing is left as-is rather than discarded.
+    const srNoCol = headerRow.findIndex((cell) => typeof cell === 'string' && /^s\.?\s*l?r?\.?\s*no/i.test(cell.trim()));
+    let seenNumberedRow = false;
+
     for (let r = dataStart; r < dataEnd; r += 1) {
       const row = rows[r];
       if (!row || row.length === 0) continue;
@@ -115,6 +128,15 @@ export function parseManpowerSheet(rows) {
       const labelCell = row.find((cell) => typeof cell === 'string' && cell.trim().length > 0);
       const normalized = normalizeManpowerLabel(labelCell);
       if (!normalized) continue;
+
+      if (srNoCol !== -1) {
+        const numbered = typeof row[srNoCol] === 'number';
+        if (numbered) {
+          seenNumberedRow = true;
+        } else if (seenNumberedRow) {
+          break;
+        }
+      }
 
       columnMap.forEach(({ col, date, shift }) => {
         const value = row[col];
@@ -131,6 +153,27 @@ export function parseManpowerSheet(rows) {
       });
     }
   });
+
+  // A date typed into two different month blocks (February's table carrying an 11-Mar header,
+  // March's carrying a 10-Feb one) gives that day two sets of figures under one record key, so
+  // one month's numbers overwrite the other's and the day that was mistyped gets none at all.
+  // Only the sheet can say which is right, so this reports it rather than guessing.
+  const blocksByDate = new Map();
+  headerRowIndexes.forEach((headerRowIdx) => {
+    (rows[headerRowIdx] || []).forEach((cell) => {
+      if (!isPlausibleDateSerial(cell)) return;
+      const key = serialToDate(cell).toISOString().slice(0, 10);
+      if (!blocksByDate.has(key)) blocksByDate.set(key, new Set());
+      blocksByDate.get(key).add(headerRowIdx);
+    });
+  });
+  for (const [date, blocks] of blocksByDate) {
+    if (blocks.size > 1) {
+      warnings.push(
+        `${date} is listed in ${blocks.size} different month tables in the Manpower sheet (header rows ${[...blocks].join(', ')}) — those figures overwrite each other, and the day that was mistyped has none at all. Check those date headers.`,
+      );
+    }
+  }
 
   return { records, warnings };
 }
