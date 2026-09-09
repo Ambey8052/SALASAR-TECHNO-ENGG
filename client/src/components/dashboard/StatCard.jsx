@@ -1,6 +1,10 @@
 import { motion } from 'framer-motion';
 
-export function StatCard({ label, value, unit, accent = 'var(--series-1)', hint, compact = false }) {
+// `wrapLabel` opts a card out of the single-line truncation the others use. Labels are set in
+// uppercase at 12px, so a long one ("Completed production till final coat") loses its most
+// important words to the ellipsis — the cards sit in a stretch row, so letting that one wrap
+// simply makes every card in the row equally taller.
+export function StatCard({ label, value, unit, accent = 'var(--series-1)', hint, compact = false, wrapLabel = false }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -10,7 +14,11 @@ export function StatCard({ label, value, unit, accent = 'var(--series-1)', hint,
       style={{ background: 'var(--surface-1)' }}
     >
       <div className="absolute inset-x-0 top-0 h-1" style={{ background: accent }} />
-      <div className="truncate text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+      <div
+        className={`text-xs font-medium uppercase tracking-wide ${wrapLabel ? 'text-balance' : 'truncate'}`}
+        style={{ color: 'var(--text-muted)' }}
+        title={label}
+      >
         {label}
       </div>
       <div className={`flex items-baseline gap-1.5 ${compact ? 'mt-1' : 'mt-2'}`}>

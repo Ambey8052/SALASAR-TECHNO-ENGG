@@ -154,7 +154,8 @@ export function Dashboard() {
               <>
                 <StatCard
                   compact
-                  label={`Completed (${preset})`}
+                  wrapLabel
+                  label="Completed production till final coat"
                   value={summary?.production.completedInRange ?? '—'}
                   unit="MT"
                   accent="var(--series-3)"
