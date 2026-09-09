@@ -19,7 +19,7 @@ const UNIT_LABEL = { HSD: 'HSD', BU: 'Bhilai' };
 
 const VIEWS = [
   { value: 'overview', label: 'Overview' },
-  { value: 'synopsis', label: 'Dispatch Synopsis' },
+  { value: 'synopsis', label: 'Synopsis Dispatch' },
 ];
 
 function ViewToggle({ view, onChange }) {
