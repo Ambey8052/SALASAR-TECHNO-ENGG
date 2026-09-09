@@ -29,16 +29,39 @@ async function syncManpowerTab(log) {
     return;
   }
 
+  // One timestamp for the whole run, so "not touched by this parse" is a simple comparison
+  // below rather than a per-record bookkeeping exercise.
+  const syncedAt = new Date();
+
   const ops = records.map((rec) => ({
     updateOne: {
       filter: { date: rec.date, businessUnit: rec.businessUnit, category: rec.category, shift: rec.shift },
-      update: { $set: { ...rec, syncedAt: new Date() } },
+      update: { $set: { ...rec, syncedAt } },
       upsert: true,
     },
   }));
 
   const result = await ManpowerRecord.bulkWrite(ops, { ordered: false });
   log.rowsUpserted += (result.upsertedCount || 0) + (result.modifiedCount || 0);
+
+  // The uniqueness key includes `shift`, so a day re-read under a different shift layout does
+  // not overwrite what was stored before — it lands beside it. The last day of every month
+  // used to be recorded once with no shift at all; it is now correctly split into day/night/
+  // 12.30, and without this the old shift-less record would survive and be summed on top of
+  // the new ones, counting that day roughly twice. The same applies whenever a category is
+  // renamed or dropped from the sheet.
+  //
+  // Only the days this parse actually covered are touched, so history the sheet no longer
+  // reaches back to is left alone.
+  const parsedDates = [...new Set(records.map((rec) => rec.date.getTime()))].map((t) => new Date(t));
+  const stale = await ManpowerRecord.deleteMany({ date: { $in: parsedDates }, syncedAt: { $lt: syncedAt } });
+  if (stale.deletedCount > 0) {
+    log.issues.push({
+      tab: 'Manpower',
+      message: `Removed ${stale.deletedCount} stale record(s) that the current sheet no longer accounts for — most likely a day whose shift columns changed shape since a previous sync.`,
+    });
+  }
+
   log.tabsProcessed.push('Manpower');
 }
 

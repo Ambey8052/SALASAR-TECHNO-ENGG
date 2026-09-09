@@ -23,6 +23,17 @@ function startEndOfToday() {
   return { start, end };
 }
 
+// Day and night are full shifts worked by different people, so both count in full. The 12.30
+// column is a half shift and counts as half a head — a day that ran one would otherwise be
+// overstated. Records keep the figure exactly as the sheet writes it; the weighting is applied
+// here, at the point of totalling, so every record still traces back to its own cell.
+//
+// Every manpower total on the dashboard must use this rather than summing $count directly, or
+// the figures on one chart will disagree with the next.
+const weightedHeadcount = () => ({
+  $sum: { $multiply: ['$count', { $cond: [{ $eq: ['$shift', 'mid'] }, 0.5, 1] }] },
+});
+
 async function getManpowerSummary(from, to, businessUnit) {
   const match = { date: { $gte: from, $lte: to } };
   if (businessUnit) match.businessUnit = businessUnit;
@@ -36,13 +47,13 @@ async function getManpowerSummary(from, to, businessUnit) {
     // a flow, so adding 30 days of counts together would wildly overstate it.
     ManpowerRecord.aggregate([
       { $match: match },
-      { $group: { _id: { category: '$category', date: '$date' }, dailyTotal: { $sum: '$count' } } },
+      { $group: { _id: { category: '$category', date: '$date' }, dailyTotal: weightedHeadcount() } },
       { $group: { _id: '$_id.category', total: { $avg: '$dailyTotal' } } },
       { $sort: { total: -1 } },
     ]),
     ManpowerRecord.aggregate([
       { $match: match },
-      { $group: { _id: '$date', total: { $sum: '$count' } } },
+      { $group: { _id: '$date', total: weightedHeadcount() } },
       { $sort: { _id: 1 } },
     ]),
     // Every category broken out day by day, for the manpower trend chart. HSD only ever has
@@ -50,12 +61,12 @@ async function getManpowerSummary(from, to, businessUnit) {
     // (BU) also has civil and shed (and office), which show up here the same way.
     ManpowerRecord.aggregate([
       { $match: match },
-      { $group: { _id: { date: '$date', category: '$category' }, total: { $sum: '$count' } } },
+      { $group: { _id: { date: '$date', category: '$category' }, total: weightedHeadcount() } },
       { $sort: { '_id.date': 1 } },
     ]),
     ManpowerRecord.aggregate([
       { $match: todayMatch },
-      { $group: { _id: null, total: { $sum: '$count' } } },
+      { $group: { _id: null, total: weightedHeadcount() } },
     ]),
   ]);
 

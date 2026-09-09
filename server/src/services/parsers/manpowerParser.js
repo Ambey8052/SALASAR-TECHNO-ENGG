@@ -23,11 +23,37 @@ function rowHasShiftLabelsInDateColumns(row, dateColumnIndexes) {
   return false;
 }
 
+// How many columns each date occupies, taken as the most common gap between consecutive date
+// columns in this block — 3 where the sheet tracks Day / Night / 12.30, 1 where it records a
+// single figure per day.
+function detectColumnStride(dateColumnIndexes) {
+  if (dateColumnIndexes.length < 2) return null;
+  const counts = new Map();
+  for (let i = 1; i < dateColumnIndexes.length; i += 1) {
+    const gap = dateColumnIndexes[i] - dateColumnIndexes[i - 1];
+    counts.set(gap, (counts.get(gap) || 0) + 1);
+  }
+  let best = null;
+  for (const [gap, count] of counts) {
+    if (!best || count > best.count) best = { gap, count };
+  }
+  return best?.gap ?? null;
+}
+
 function buildColumnMap(headerRow, dateColumnIndexes, subHeaderRow) {
   const columnMap = [];
+  // Every date but the last is bounded by the next date column. The last one has no next date,
+  // and the header row's own length measures nothing useful there — the date row *ends* at
+  // that cell, while its Night and 12.30 headers sit in the sub-header row below it. Falling
+  // back to headerRow.length therefore gave the final date a span of 1, so the last day of
+  // every month was read as a single un-shifted figure and its night and 12.30 counts were
+  // dropped (31 Aug 2026 came out as 221 people against the sheet's 263). The block's own
+  // column stride is the correct bound.
+  const stride = detectColumnStride(dateColumnIndexes);
+
   dateColumnIndexes.forEach((colIdx, i) => {
     const date = serialToDate(headerRow[colIdx]);
-    const nextDateColIdx = dateColumnIndexes[i + 1] ?? headerRow.length;
+    const nextDateColIdx = dateColumnIndexes[i + 1] ?? colIdx + (stride ?? Math.max(headerRow.length - colIdx, 1));
     const span = nextDateColIdx - colIdx;
 
     if (!subHeaderRow || span <= 1) {
