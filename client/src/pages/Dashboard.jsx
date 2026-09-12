@@ -18,7 +18,7 @@ import { PC_HSD_EMAIL } from '../lib/constants';
 const UNIT_LABEL = { HSD: 'HSD', BU: 'Bhilai' };
 
 const VIEWS = [
-  { value: 'overview', label: 'Overview' },
+  { value: 'overview', label: 'Production Synopsis' },
   { value: 'synopsis', label: 'Dispatch Synopsis' },
 ];
 
@@ -92,7 +92,7 @@ export function Dashboard() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {isSynopsis ? 'Dispatch Synopsis' : `${UNIT_LABEL[businessUnit]} Overview`}
+            {isSynopsis ? 'Dispatch Synopsis' : `${UNIT_LABEL[businessUnit]} Production Synopsis`}
           </h1>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             {isSynopsis ? 'Department-wise dispatch against plan, from the monthly synopsis reports' : formatRangeLabel(range)}
