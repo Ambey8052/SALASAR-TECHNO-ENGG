@@ -47,6 +47,7 @@ const GMAIL_CONNECT_MESSAGES = {
     good: false,
   },
   wrong_account: { text: 'That consent was granted by a different Google account. Sign in as pc.hsd@salasartechno.com and try again.', good: false },
+  invalid_state: { text: 'That connection link was not started from this page, or has expired. Please try again.', good: false },
   failed: { text: 'Connecting Gmail failed. Please try again.', good: false },
   missing_code: { text: 'Gmail connection was cancelled.', good: false },
 };

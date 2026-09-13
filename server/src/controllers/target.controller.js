@@ -7,7 +7,7 @@ export async function listTargets(req, res) {
 
 export async function upsertTarget(req, res) {
   const { client, qty } = req.body;
-  if (!client || typeof qty !== 'number' || qty < 0) {
+  if (typeof client !== 'string' || !client.trim() || client.length > 50 || typeof qty !== 'number' || !Number.isFinite(qty) || qty < 0) {
     return res.status(400).json({ error: 'client and a non-negative qty are required' });
   }
 

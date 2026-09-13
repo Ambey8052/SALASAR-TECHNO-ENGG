@@ -9,4 +9,8 @@ const insightCacheSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Entries are only ever read for a day (insights.controller.js); without a TTL the collection
+// grows by one document per filter combination, forever.
+insightCacheSchema.index({ generatedAt: 1 }, { expireAfterSeconds: 2 * 24 * 60 * 60 });
+
 export const InsightCache = mongoose.model('InsightCache', insightCacheSchema);

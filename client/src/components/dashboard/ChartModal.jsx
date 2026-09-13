@@ -1,7 +1,20 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function ChartModal({ title, subtitle, isOpen, onClose, children }) {
+  const closeButtonRef = useRef(null);
+
+  // Keyboard users land on the dialog when it opens and back on the chart card that opened it
+  // when it closes, instead of being left at the top of the page.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const opener = document.activeElement;
+    closeButtonRef.current?.focus();
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return undefined;
     function onKeyDown(e) {
@@ -52,6 +65,7 @@ export function ChartModal({ title, subtitle, isOpen, onClose, children }) {
                 )}
               </div>
               <button
+                ref={closeButtonRef}
                 onClick={onClose}
                 aria-label="Close"
                 className="shrink-0 rounded-full px-2.5 py-1.5 text-sm leading-none transition-colors"

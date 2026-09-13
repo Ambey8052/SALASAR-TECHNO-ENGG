@@ -14,6 +14,7 @@ const DRIVE_CONNECT_MESSAGES = {
   },
   failed: { text: 'Connecting Google Drive failed. Please try again.', good: false },
   missing_code: { text: 'Drive connection was cancelled.', good: false },
+  invalid_state: { text: 'That connection link was not started from this page, or has expired. Please try again.', good: false },
 };
 
 export function Settings() {

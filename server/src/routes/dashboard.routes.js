@@ -3,12 +3,13 @@ import { getHsdSummary, listManpowerRecords } from '../controllers/dashboard.con
 import { getHsdInsights } from '../controllers/insights.controller.js';
 import { getSynopsisSummary } from '../controllers/synopsis.controller.js';
 import { requireAuth } from '../middleware/auth.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
-router.get('/hsd/summary', requireAuth, getHsdSummary);
-router.get('/hsd/insights', requireAuth, getHsdInsights);
-router.get('/manpower', requireAuth, listManpowerRecords);
-router.get('/synopsis', requireAuth, getSynopsisSummary);
+router.get('/hsd/summary', requireAuth, asyncHandler(getHsdSummary));
+router.get('/hsd/insights', requireAuth, asyncHandler(getHsdInsights));
+router.get('/manpower', requireAuth, asyncHandler(listManpowerRecords));
+router.get('/synopsis', requireAuth, asyncHandler(getSynopsisSummary));
 
 export default router;

@@ -61,6 +61,8 @@ export function DateRangePicker({ isActive, value, onApply, disabled, label = 'C
     <div className="relative" ref={containerRef}>
       <button
         onClick={toggleOpen}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         className="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
         style={{
           background: isActive ? 'var(--series-1)' : 'transparent',

@@ -5,6 +5,10 @@ import { API_BASE } from '../lib/api';
 const ERROR_MESSAGES = {
   login_failed: 'Login failed. Please try again.',
   missing_code: 'Login was cancelled.',
+  not_allowed: 'This Google account is not allowed to use the dashboard. Sign in with your Salasar account, or ask an admin to add you.',
+  not_verified: 'Google has not verified the email address on this account. Verify it with Google, then try again.',
+  invalid_state: 'That sign-in link was not started from this page, or has expired. Please try again.',
+  session_expired: 'Your session has ended. Please sign in again.',
 };
 
 export function Login() {
@@ -62,7 +66,7 @@ export function Login() {
         </motion.a>
 
         <p className="mt-4 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-          Sign in with any Google account
+          Sign in with your Salasar Google account
         </p>
       </motion.div>
     </div>

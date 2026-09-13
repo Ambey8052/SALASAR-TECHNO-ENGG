@@ -11,6 +11,20 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+// A session that expires (12 h) or is revoked mid-use used to make every request fail quietly,
+// leaving the page full of dashes with no explanation. Any 401 now sends the user back to sign
+// in — except the initial "who am I" check, whose 401 simply means "not signed in yet".
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const isSessionCheck = error.config?.url === '/auth/me';
+    if (error.response?.status === 401 && !isSessionCheck && window.location.pathname !== '/login') {
+      window.location.assign('/login?error=session_expired');
+    }
+    return Promise.reject(error);
+  },
+);
+
 export async function fetchMe() {
   const { data } = await api.get('/auth/me');
   return data;

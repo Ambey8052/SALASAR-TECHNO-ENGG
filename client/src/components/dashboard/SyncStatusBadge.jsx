@@ -39,6 +39,10 @@ export function SyncStatusBadge({ status, onSynced }) {
   const log = status.latestSync;
   const dotColor = STATUS_COLOR[log?.status] || 'var(--text-muted)';
   const issues = log?.issues ?? [];
+  // Routine notes (stale rows tidied up, vehicle blocks skipped) are listed but not counted:
+  // counting them made every run look like it had problems, so a real one could not stand out.
+  const problems = issues.filter((issue) => issue.severity !== 'info');
+  const hasErrors = issues.some((issue) => issue.severity === 'error');
   const synopsisTabs = (log?.tabsProcessed ?? []).filter((tab) => tab.startsWith('Synopsis/'));
 
   async function handleSyncNow() {
@@ -80,12 +84,18 @@ export function SyncStatusBadge({ status, onSynced }) {
             transition={syncing ? { repeat: Infinity, duration: 1 } : {}}
           />
         </AnimatePresence>
-        {log?.finishedAt
-          ? `Synced ${formatDistanceToNow(new Date(log.finishedAt), { addSuffix: true })}`
-          : 'Awaiting first sync'}
-        {issues.length > 0 && (
-          <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: 'var(--status-warning)', color: '#ffffff' }}>
-            {issues.length}
+        {log?.status === 'running'
+          ? 'Sync in progress…'
+          : log?.finishedAt
+            ? `Synced ${formatDistanceToNow(new Date(log.finishedAt), { addSuffix: true })}`
+            : 'Awaiting first sync'}
+        {problems.length > 0 && (
+          <span
+            className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+            style={{ background: hasErrors ? 'var(--status-critical)' : 'var(--status-warning)', color: '#ffffff' }}
+            title={`${problems.length} issue(s) need attention`}
+          >
+            {problems.length}
           </span>
         )}
       </button>
@@ -137,7 +147,10 @@ export function SyncStatusBadge({ status, onSynced }) {
             <ul className="max-h-56 space-y-1.5 overflow-auto">
               {issues.map((issue, i) => (
                 <li key={`${issue.tab}-${i}`} style={{ color: 'var(--text-secondary)' }}>
-                  <span className="font-medium" style={{ color: 'var(--status-warning)' }}>
+                  <span
+                    className="font-medium"
+                    style={{ color: issue.severity === 'error' ? 'var(--status-critical)' : issue.severity === 'info' ? 'var(--text-muted)' : 'var(--status-warning)' }}
+                  >
                     {issue.tab}
                   </span>
                   : {issue.message}

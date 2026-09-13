@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import {
   createLoginOAuthClient,
@@ -7,7 +8,7 @@ import {
   DRIVE_SYNC_SCOPES,
   GMAIL_SEND_SCOPES,
 } from '../config/google.js';
-import { env } from '../config/env.js';
+import { env, isAllowedLogin, roleFor } from '../config/env.js';
 import { User } from '../models/User.js';
 import { GoogleToken } from '../models/GoogleToken.js';
 import { encryptText } from '../utils/crypto.js';
@@ -20,6 +21,35 @@ import { encryptText } from '../utils/crypto.js';
 function crossSiteCookieOptions(req) {
   const secure = req.secure;
   return { httpOnly: true, secure, sameSite: secure ? 'none' : 'lax' };
+}
+
+// OAuth `state`: a random value set in a short-lived cookie when a flow starts and required
+// back, unchanged, on its callback. Without it, a callback URL carrying someone else's
+// authorization code could be replayed against a signed-in user — signing them into another
+// account, or (for an admin) storing an attacker's Drive grant as the sync credential, which
+// silently breaks every sync from then on (SECURITY_REPORT SEC-03). SameSite=Lax is enough: the
+// callback is a top-level navigation back from accounts.google.com, which Lax cookies accompany.
+const STATE_COOKIE = 'oauth_state';
+const STATE_COOKIE_PATH = '/api/auth';
+
+function startOAuthFlow(req, res, flow) {
+  const state = crypto.randomBytes(24).toString('base64url');
+  res.cookie(STATE_COOKIE, `${flow}.${state}`, {
+    httpOnly: true,
+    secure: req.secure,
+    sameSite: 'lax',
+    maxAge: 10 * 60 * 1000,
+    path: STATE_COOKIE_PATH,
+  });
+  return state;
+}
+
+function isValidOAuthState(req, res, flow) {
+  const expected = req.cookies?.[STATE_COOKIE];
+  res.clearCookie(STATE_COOKIE, { httpOnly: true, secure: req.secure, sameSite: 'lax', path: STATE_COOKIE_PATH });
+  const received = typeof req.query.state === 'string' ? `${flow}.${req.query.state}` : '';
+  if (!expected || !received || expected.length !== received.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received));
 }
 
 function issueSessionCookie(req, res, user) {
@@ -37,6 +67,7 @@ export function redirectToGoogleLogin(req, res) {
     access_type: 'online',
     scope: LOGIN_SCOPES,
     prompt: 'select_account',
+    state: startOAuthFlow(req, res, 'login'),
   });
   res.redirect(url);
 }
@@ -45,6 +76,9 @@ export async function handleGoogleLoginCallback(req, res) {
   const { code } = req.query;
   if (!code) {
     return res.redirect(`${env.clientOrigin}/login?error=missing_code`);
+  }
+  if (!isValidOAuthState(req, res, 'login')) {
+    return res.redirect(`${env.clientOrigin}/login?error=invalid_state`);
   }
 
   try {
@@ -57,8 +91,17 @@ export async function handleGoogleLoginCallback(req, res) {
     if (!email) {
       return res.redirect(`${env.clientOrigin}/login?error=login_failed`);
     }
+    // Roles and the Email feature are granted by matching this address, so it has to be one
+    // Google has actually verified belongs to the person signing in.
+    if (payload.email_verified !== true) {
+      return res.redirect(`${env.clientOrigin}/login?error=not_verified`);
+    }
+    if (!isAllowedLogin(email)) {
+      console.warn('[auth] sign-in refused for an account outside the allowed list');
+      return res.redirect(`${env.clientOrigin}/login?error=not_allowed`);
+    }
 
-    const role = env.adminEmails.includes(email) ? 'admin' : 'manager';
+    const role = roleFor(email);
 
     const user = await User.findOneAndUpdate(
       { googleId: payload.sub },
@@ -88,7 +131,9 @@ export async function getCurrentUser(req, res) {
     email: user.email,
     name: user.name,
     picture: user.picture,
-    role: user.role,
+    // The role the server enforces right now (middleware/auth.js), not the one stored at the
+    // user's last sign-in — otherwise the UI and the API could disagree about what they may do.
+    role: req.user.role,
     title: user.title,
   });
 }
@@ -104,6 +149,7 @@ export function redirectToDriveConnect(req, res) {
     access_type: 'offline',
     scope: DRIVE_SYNC_SCOPES,
     prompt: 'consent',
+    state: startOAuthFlow(req, res, 'drive'),
   });
   res.redirect(url);
 }
@@ -112,6 +158,9 @@ export async function handleDriveConnectCallback(req, res) {
   const { code } = req.query;
   if (!code) {
     return res.redirect(`${env.clientOrigin}/settings?driveConnect=missing_code`);
+  }
+  if (!isValidOAuthState(req, res, 'drive')) {
+    return res.redirect(`${env.clientOrigin}/settings?driveConnect=invalid_state`);
   }
 
   try {
@@ -165,6 +214,7 @@ export function redirectToGmailConnect(req, res) {
     scope: GMAIL_SEND_SCOPES,
     prompt: 'consent',
     login_hint: env.emailUser,
+    state: startOAuthFlow(req, res, 'gmail'),
   });
   res.redirect(url);
 }
@@ -173,6 +223,9 @@ export async function handleGmailConnectCallback(req, res) {
   const { code } = req.query;
   if (!code) {
     return res.redirect(`${env.clientOrigin}/email?gmailConnect=missing_code`);
+  }
+  if (!isValidOAuthState(req, res, 'gmail')) {
+    return res.redirect(`${env.clientOrigin}/email?gmailConnect=invalid_state`);
   }
 
   try {

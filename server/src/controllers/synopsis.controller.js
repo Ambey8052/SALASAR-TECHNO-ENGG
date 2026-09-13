@@ -1,6 +1,7 @@
 import { SynopsisMonth } from '../models/SynopsisMonth.js';
 import { SynopsisDispatchRecord } from '../models/SynopsisDispatchRecord.js';
 import { roundDeep } from '../utils/roundNumbers.js';
+import { latestDataAsOf } from './dashboard.controller.js';
 
 const MONTH_LABELS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -382,26 +383,34 @@ export function buildSynopsisPayload(allMonths, records, requestedScope) {
   return roundDeep(payload);
 }
 
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const isRealDay = (value) =>
+  typeof value === 'string' && DAY_PATTERN.test(value) && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+
 export async function getSynopsisSummary(req, res) {
   const { from, to, month } = req.query;
+  if (month !== undefined && (typeof month !== 'string' || (month !== 'all' && !/^\d{4}-\d{2}$/.test(month)))) {
+    return res.status(400).json({ message: 'month must be YYYY-MM or "all".' });
+  }
   const requestedMonth = month && month !== 'all' ? month : null;
 
   // A range wins over a month if both arrive, since the range is the more specific request.
+  // The query below is built from exactly the strings validated here: validation used to
+  // accept anything `new Date()` could read ("2026-01-01T05:00") while the query appended its
+  // own time to it and silently searched for Invalid Date.
   let scope = requestedMonth;
-  if (from && to) {
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
-      return res.status(400).json({ message: 'from and to must be valid dates (YYYY-MM-DD).' });
+  if (from !== undefined || to !== undefined) {
+    if (!isRealDay(from) || !isRealDay(to)) {
+      return res.status(400).json({ message: 'from and to must both be valid dates (YYYY-MM-DD).' });
     }
-    if (fromDate > toDate) {
+    if (from > to) {
       return res.status(400).json({ message: 'from must not be after to.' });
     }
     scope = { from, to };
   }
 
-  const allMonths = await SynopsisMonth.find().sort({ month: 1 }).lean();
-  if (allMonths.length === 0) return res.json(EMPTY_SYNOPSIS);
+  const [allMonths, dataAsOf] = await Promise.all([SynopsisMonth.find().sort({ month: 1 }).lean(), latestDataAsOf()]);
+  if (allMonths.length === 0) return res.json({ ...EMPTY_SYNOPSIS, dataAsOf });
 
   if (requestedMonth && !scope?.from && !allMonths.some((m) => m.month === requestedMonth)) {
     return res.status(404).json({ message: `No synopsis data for ${requestedMonth}.` });
@@ -413,5 +422,5 @@ export async function getSynopsisSummary(req, res) {
 
   const records = await SynopsisDispatchRecord.find(query).sort({ date: 1 }).lean();
 
-  return res.json(buildSynopsisPayload(allMonths, records, scope));
+  return res.json({ ...buildSynopsisPayload(allMonths, records, scope), dataAsOf, generatedAt: new Date() });
 }

@@ -139,6 +139,7 @@ export function SynopsisView() {
         <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {kpis.coveredDays} reported days
           {kpis.idleDays > 0 && `, ${kpis.idleDays} with no dispatch`}
+          {data.dataAsOf && ` · figures as of the ${format(new Date(data.dataAsOf), 'd MMM, HH:mm')} sync`}
         </div>
       </div>
 

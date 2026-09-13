@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -11,6 +11,7 @@ import { DispatchTrendChart, DispatchClientChart } from '../components/dashboard
 import { InsightsPanel } from '../components/dashboard/InsightsPanel';
 import { SyncStatusBadge } from '../components/dashboard/SyncStatusBadge';
 import { SynopsisView } from '../components/dashboard/SynopsisView';
+import { ErrorBoundary } from '../components/layout/ErrorBoundary';
 import { useSyncSocket } from '../hooks/useSyncSocket';
 import { useAuth } from '../context/AuthContext';
 import { PC_HSD_EMAIL } from '../lib/constants';
@@ -77,14 +78,36 @@ export function Dashboard() {
     refetchInterval: 60_000,
   });
 
-  const handleSynced = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['sync-status'] });
-  }, [queryClient]);
+  // The figures on screen are deliberately frozen for the session (above), while the sync badge
+  // updates live. Side by side, "Synced 2 minutes ago" read as "these numbers are two minutes
+  // old" when they could be hours old. The page now says which sync its figures came from, and
+  // offers — never forces — newer ones when a sync lands.
+  const [newerDataAvailable, setNewerDataAvailable] = useState(false);
+  const dataAsOfRef = useRef(null);
+  const summary = summaryQuery.data;
+  dataAsOfRef.current = summary?.dataAsOf ?? null;
+
+  const handleSynced = useCallback(
+    (event) => {
+      queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      const wroteData = !event || event.status === 'success' || event.status === 'partial';
+      const newer = !event?.finishedAt || !dataAsOfRef.current || new Date(event.finishedAt) > new Date(dataAsOfRef.current);
+      if (wroteData && newer) setNewerDataAvailable(true);
+    },
+    [queryClient],
+  );
 
   useSyncSocket(handleSynced);
 
-  const summary = summaryQuery.data;
+  function loadNewerFigures() {
+    setNewerDataAvailable(false);
+    queryClient.invalidateQueries({ queryKey: ['hsd-summary'] });
+    queryClient.invalidateQueries({ queryKey: ['synopsis'] });
+    queryClient.invalidateQueries({ queryKey: ['hsd-insights'] });
+  }
+
   const productionAvailable = summary?.production?.available ?? false;
+  const dispatchAvailable = summary?.dispatch?.available ?? false;
   const isSynopsis = view === 'synopsis';
 
   return (
@@ -100,11 +123,30 @@ export function Dashboard() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <ViewToggle view={view} onChange={setView} />
-          {user?.email !== PC_HSD_EMAIL && <SyncStatusBadge status={syncStatusQuery.data} onSynced={handleSynced} />}
+          {user?.email !== PC_HSD_EMAIL && <SyncStatusBadge status={syncStatusQuery.data} onSynced={() => handleSynced()} />}
         </div>
       </div>
 
+      {newerDataAvailable && (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-sm"
+          style={{ background: 'var(--surface-1)', color: 'var(--text-secondary)' }}
+        >
+          <span>Newer figures are available from the latest sync. The numbers below are unchanged until you refresh.</span>
+          <button onClick={loadNewerFigures} className="rounded-lg px-3 py-1.5 text-sm font-medium" style={{ background: 'var(--series-1)', color: '#ffffff' }}>
+            Refresh figures
+          </button>
+        </div>
+      )}
+
       {isSynopsis && <SynopsisView />}
+
+      {!isSynopsis && summaryQuery.isError && !summary && (
+        <div className="rounded-xl border px-4 py-3 text-sm" style={{ color: 'var(--status-critical)', background: 'var(--surface-1)' }}>
+          The dashboard figures could not be loaded. {summaryQuery.error?.response?.data?.error || 'Check your connection and reload the page.'}
+        </div>
+      )}
 
       {!isSynopsis && (
         <>
@@ -121,8 +163,17 @@ export function Dashboard() {
             />
           </div>
 
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-            Snapshot &amp; {formatRangeLabel(range)}
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+              Snapshot &amp; {formatRangeLabel(range)}
+            </span>
+            {summary && (
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }} title="The figures on this page stay as loaded until you refresh them.">
+                {summary.dataAsOf
+                  ? `Figures as of the ${format(new Date(summary.dataAsOf), 'd MMM, HH:mm')} sync`
+                  : 'No completed sync yet'}
+              </span>
+            )}
           </div>
           <motion.div
             initial="hidden"
@@ -151,29 +202,29 @@ export function Dashboard() {
               />
             )}
             {productionAvailable && (
-              <>
-                <StatCard
-                  compact
-                  wrapLabel
-                  label="Completed production till final coat"
-                  value={summary?.production.completedInRange ?? '—'}
-                  unit="MT"
-                  accent="var(--series-3)"
-                />
-                <StatCard
-                  compact
-                  label={`Dispatched (${preset})`}
-                  value={summary?.dispatch.inRange ?? '—'}
-                  unit="MT"
-                  accent="var(--series-2)"
-                />
-              </>
+              <StatCard
+                compact
+                wrapLabel
+                label="Completed production till final coat"
+                value={summary?.production.completedInRange ?? '—'}
+                unit="MT"
+                accent="var(--series-3)"
+              />
+            )}
+            {dispatchAvailable && (
+              <StatCard
+                compact
+                label={`Dispatched (${preset === 'Custom' ? formatRangeLabel(range) : preset})`}
+                value={summary?.dispatch.inRange ?? '—'}
+                unit="MT"
+                accent="var(--series-2)"
+              />
             )}
           </motion.div>
 
           {summary && !productionAvailable && (
             <div className="mb-6 rounded-xl border px-4 py-3 text-sm" style={{ color: 'var(--text-muted)', background: 'var(--surface-1)' }}>
-              Production and dispatch tracking for Bhilai isn't connected to a data source yet — only manpower is available for this unit right now.
+              Production tracking for Bhilai isn't connected to a data source yet — manpower and dispatch are shown for this unit.
             </div>
           )}
 
@@ -186,6 +237,10 @@ export function Dashboard() {
                   <>
                     <ProductionStageChart byStageByClient={summary.production.byStageByClient} />
                     <ProductionTrendChart trendByClient={summary.production.trendByClient} byClient={summary.production.byClient} />
+                  </>
+                )}
+                {dispatchAvailable && (
+                  <>
                     <DispatchClientChart byClient={summary.dispatch.byClient} />
                     <DispatchTrendChart trendByClient={summary.dispatch.trendByClient} byClient={summary.dispatch.byClient} />
                   </>
@@ -196,7 +251,10 @@ export function Dashboard() {
 
           {summary && (
             <div className="mt-4">
-              <InsightsPanel params={params} />
+              {/* A broken panel must never take the whole dashboard down with it. */}
+              <ErrorBoundary fallback={null}>
+                <InsightsPanel params={params} />
+              </ErrorBoundary>
             </div>
           )}
 

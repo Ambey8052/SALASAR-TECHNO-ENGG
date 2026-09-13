@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import { sendReportEmail, MailerUnavailableError } from '../services/mailer.service.js';
 import { ScheduledEmail } from '../models/ScheduledEmail.js';
@@ -17,8 +18,8 @@ function validateComposedEmail(body) {
   const ccList = normalizeRecipients(cc);
 
   if (toList.length === 0) return { error: 'At least one valid "To" recipient is required.' };
-  if (!subject || !subject.trim()) return { error: 'Subject is required.' };
-  if (!bodyHtml || !bodyHtml.trim()) return { error: 'Email body is required.' };
+  if (typeof subject !== 'string' || !subject.trim()) return { error: 'Subject is required.' };
+  if (typeof bodyHtml !== 'string' || !bodyHtml.trim()) return { error: 'Email body is required.' };
 
   return { toList, ccList, subject: subject.trim(), bodyHtml };
 }
@@ -66,8 +67,19 @@ export async function scheduleReport(req, res) {
   res.json({ ok: true, id: scheduled._id, sendAt: scheduled.sendAt });
 }
 
+// Queued emails, plus any from the last 30 days that did not go out. A scheduled send that
+// failed used to vanish from this list the moment it failed, so nobody learned the report had
+// not been delivered.
+const UNDELIVERED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 export async function listScheduledEmails(req, res) {
-  const scheduled = await ScheduledEmail.find({ createdByEmail: req.user.email, status: 'pending' })
+  const scheduled = await ScheduledEmail.find({
+    createdByEmail: req.user.email,
+    $or: [
+      { status: { $in: ['pending', 'sending'] } },
+      { status: { $in: ['failed', 'unknown'] }, sendAt: { $gte: new Date(Date.now() - UNDELIVERED_WINDOW_MS) } },
+    ],
+  })
     .sort({ sendAt: 1 })
     .lean();
   res.json(
@@ -77,17 +89,25 @@ export async function listScheduledEmails(req, res) {
       cc: s.cc,
       subject: s.subject,
       sendAt: s.sendAt,
+      status: s.status,
+      error: s.status === 'failed' || s.status === 'unknown' ? s.error : null,
     })),
   );
 }
 
 export async function cancelScheduledEmail(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(404).json({ error: 'Scheduled email not found.' });
+  }
   const scheduled = await ScheduledEmail.findOne({ _id: req.params.id, createdByEmail: req.user.email });
   if (!scheduled) return res.status(404).json({ error: 'Scheduled email not found.' });
-  if (scheduled.status !== 'pending') {
-    return res.status(409).json({ error: 'This email has already been sent or cancelled.' });
+  // Conditional on still being 'pending', so a cancel cannot race the scheduler claiming it.
+  const cancelled = await ScheduledEmail.findOneAndUpdate(
+    { _id: scheduled._id, status: { $in: ['pending', 'failed', 'unknown'] } },
+    { $set: { status: 'cancelled' } },
+  );
+  if (!cancelled) {
+    return res.status(409).json({ error: 'This email is being sent or has already been sent or cancelled.' });
   }
-  scheduled.status = 'cancelled';
-  await scheduled.save();
   res.json({ ok: true });
 }

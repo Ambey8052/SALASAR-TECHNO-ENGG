@@ -145,6 +145,31 @@ for (const day of days) {
   }
 }
 console.log(`  day-by-day vs the raw grid: ${days.length - mismatches}/${days.length} days match`);
+
+// The comparison above adds up every record the parser emitted. The database keeps one per
+// date + unit + category + shift, so when the sheet lists a day twice (a mistyped header) the
+// parse can match the grid exactly while the stored figures do not. Compare what will actually
+// be stored, too.
+const storedByKey = new Map();
+for (const record of records) {
+  storedByKey.set(`${iso(record.date)}|${record.businessUnit}|${record.category}|${record.shift}`, record);
+}
+const storedByDate = new Map();
+for (const record of storedByKey.values()) {
+  const key = iso(record.date);
+  storedByDate.set(key, (storedByDate.get(key) || 0) + record.count);
+}
+let storedMismatches = 0;
+for (const day of days) {
+  const stored = storedByDate.get(day) ?? 0;
+  const sheet = sheetByDate.get(day) ?? 0;
+  if (stored !== sheet) {
+    storedMismatches += 1;
+    failures += 1;
+    console.log(`  FAIL  ${day}: the database will hold ${stored} people, the sheet's own cells add to ${sheet}`);
+  }
+}
+console.log(`  as stored (one figure per key) vs the raw grid: ${days.length - storedMismatches}/${days.length} days match`);
 console.log(`  weighted headcount (day + night + half of 12.30): ${days.length - weightedMismatches}/${days.length} days match`);
 
 // The weighting has to actually be doing something, or a regression that silently drops it

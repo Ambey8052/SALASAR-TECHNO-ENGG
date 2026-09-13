@@ -64,26 +64,68 @@ export class InsightsUnavailableError extends Error {
   }
 }
 
+// Below the client's own 75 s request timeout, so a slow model produces a clear 503 rather than
+// a request the browser has already abandoned.
+const GEMINI_TIMEOUT_MS = 45_000;
+
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Gemini did not answer within ${ms / 1000} s.`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+const SEVERITIES = new Set(['good', 'info', 'warning', 'critical']);
+
+// The response schema is a request to the model, not a guarantee. A reply missing `insights`
+// used to be cached for a day and then crashed the dashboard, which calls insights.map() on it.
+// Anything that does not match the shape the panel renders is refused, and never cached.
+export function assertInsightsShape(data) {
+  const ok =
+    data && typeof data === 'object' &&
+    typeof data.headline === 'string' &&
+    typeof data.narrative === 'string' &&
+    Array.isArray(data.insights) &&
+    data.insights.every((i) => i && typeof i.title === 'string' && typeof i.detail === 'string' && SEVERITIES.has(i.severity)) &&
+    Array.isArray(data.recommendations) &&
+    data.recommendations.every((r) => typeof r === 'string');
+  if (!ok) throw new InsightsUnavailableError('AI response did not match the expected shape.');
+  return {
+    headline: data.headline,
+    narrative: data.narrative,
+    insights: data.insights.slice(0, 6).map(({ title, detail, severity }) => ({ title, detail, severity })),
+    recommendations: data.recommendations.slice(0, 4),
+  };
+}
+
 export async function generateInsights(summary) {
   const ai = getClient();
   if (!ai) throw new InsightsUnavailableError('GEMINI_API_KEY is not configured on the server.');
 
   let response;
   try {
-    response = await ai.interactions.create({
-      model: MODEL,
-      system_instruction: SYSTEM_INSTRUCTION,
-      input: JSON.stringify(summary),
-      store: false,
-      response_format: { type: 'text', mime_type: 'application/json', schema: INSIGHTS_SCHEMA },
-    });
+    response = await withTimeout(
+      ai.interactions.create({
+        model: MODEL,
+        system_instruction: SYSTEM_INSTRUCTION,
+        input: JSON.stringify(summary),
+        store: false,
+        response_format: { type: 'text', mime_type: 'application/json', schema: INSIGHTS_SCHEMA },
+      }),
+      GEMINI_TIMEOUT_MS,
+    );
   } catch (err) {
     throw new InsightsUnavailableError(err.message);
   }
 
+  let parsed;
   try {
-    return JSON.parse(response.output_text);
+    parsed = JSON.parse(response.output_text);
   } catch {
     throw new InsightsUnavailableError('AI response was not valid JSON.');
   }
+  return assertInsightsShape(parsed);
 }

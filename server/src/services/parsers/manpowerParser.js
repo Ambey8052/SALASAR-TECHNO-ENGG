@@ -149,6 +149,8 @@ export function parseManpowerSheet(rows) {
           shift,
           count: value,
           rawLabel: labelCell,
+          sourceRowIndex: r,
+          sourceCol: col,
         });
       });
     }

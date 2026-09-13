@@ -22,9 +22,18 @@ const DATE_CELL = /^(\d{1,2})\.(\d{1,2})\.(\d{2,4})\.?$/;
 // itself. They are read for cross-checking but never counted as departments.
 const AGGREGATE_LABELS = new Set(['total', 'subtotal', 'grandtotal']);
 
+// "ZETWERK (Job)" (January) is the same job-work line April and May write as "JOB WORK
+// (Zetwerk)"; without the second alternative it fell through to "Other" and was counted as
+// in-house work.
+const JOB_WORK = /job\s*work|\(\s*job\s*\)|zetwerk/i;
+
 const CATEGORY_PATTERNS = [
-  { pattern: /job\s*work/i, category: 'Job Work' },
+  { pattern: JOB_WORK, category: 'Job Work' },
   { pattern: /\bhsd\b/i, category: 'HSD' },
+  // Jan–Mar carry a "Ramboll Domestic" line beside "Ramboll Export". Filing domestic tonnage
+  // under Export would misstate both, so it keeps a category of its own (it renders in the
+  // palette's fallback colour; synopsisPalette.js's validated sequence is left untouched).
+  { pattern: /ramboll.*domestic|domestic.*ramboll/i, category: 'Ramboll Domestic' },
   { pattern: /ramboll/i, category: 'Ramboll Export' },
   { pattern: /indus/i, category: 'Indus GBM' },
   { pattern: /\bcow\b/i, category: 'COW' },
@@ -41,13 +50,17 @@ const CATEGORY_PATTERNS = [
 // merging it would invent a split the sheet never recorded.
 const DEPARTMENT_PATTERNS = [
   { pattern: /job\s*work.*galv/i, name: 'Job Work (Galv)' },
-  { pattern: /job\s*work.*zetwerk/i, name: 'Job Work (Zetwerk)' },
+  { pattern: /zetwerk/i, name: 'Job Work (Zetwerk)' },
   { pattern: /job\s*work.*ventura|job\s*work\s+ventura/i, name: 'Job Work (Ventura)' },
   { pattern: /buyout/i, name: 'HSD (Buyout & Others)' },
   { pattern: /hsd.*adani|adani/i, name: 'HSD - Adani' },
   { pattern: /hsd.*mhi.*ril|hsd.*ril.*mhi/i, name: 'HSD - L&T MHI & RIL' },
   { pattern: /hsd.*mhi/i, name: 'HSD - L&T MHI' },
   { pattern: /hsd.*ril/i, name: 'HSD - RIL' },
+  // Two different departments. Folding Domestic into Export put two rows on one
+  // date + department + mode key, and the database's unique index then rejected one of them —
+  // 272.7 MT of Jan–Mar dispatch never stored (docs/DATA_ACCURACY_REPORT.md DA-02).
+  { pattern: /ramboll.*domestic|domestic.*ramboll/i, name: 'Ramboll Domestic' },
   { pattern: /ramboll/i, name: 'Ramboll Export' },
   { pattern: /indus/i, name: 'Indus - GBM' },
   { pattern: /octapole/i, name: 'Octapole (Large Pole)' },
@@ -104,7 +117,7 @@ export function categoryFor(label) {
 // three lines June introduced, so the mode is inferred from the department name there rather
 // than left blank — which keeps the mode split chart populated for all five months.
 function inferMode(label) {
-  if (/job\s*work/i.test(label)) return 'Job Work';
+  if (JOB_WORK.test(label)) return 'Job Work';
   if (/buyout/i.test(label)) return 'Buyout';
   return 'Inhouse';
 }
@@ -139,11 +152,21 @@ function parseDepartmentBlock(rows, warnings, sourceFile) {
   const balanceCol = findColumn(headerRow, /balance/i);
   const achievedCol = findColumn(headerRow, /achiev/i);
 
-  const dateColumns = [];
+  const headerDates = [];
   headerRow.forEach((cell, c) => {
     const date = parseDateCell(cell);
-    if (date) dateColumns.push({ col: c, date });
+    if (date) headerDates.push({ col: c, date });
   });
+
+  // Every workbook reports on one month, so a day column dated in another month is a mistyped
+  // header. January's carries "22.06.26" where 22.01.26 belongs: read as written, it filed
+  // January's figures under 22 June, pulled January's plan into every June date range and
+  // collided with June's own records for that day, while 22 January showed nothing
+  // (docs/DATA_ACCURACY_REPORT.md DA-03). Only the sheet can say what the column should have
+  // been, so it is left out and reported rather than guessed at.
+  const blockMonth = resolveMonth([], headerDates);
+  const dateColumns = headerDates.filter(({ date }) => monthKey(date) === blockMonth);
+  const strayColumns = headerDates.filter(({ date }) => monthKey(date) !== blockMonth);
 
   if (dateColumns.length === 0) {
     warnings.push(`Department table in ${sourceFile} has no day columns — nothing to record.`);
@@ -249,6 +272,33 @@ function parseDepartmentBlock(rows, warnings, sourceFile) {
     return null;
   }
 
+  for (const { col, date } of strayColumns) {
+    const excluded = departments.reduce((sum, d) => sum + Math.max(num(rows[d.sourceRowIndex]?.[col]) ?? 0, 0), 0);
+    warnings.push(
+      `${sourceFile}: day column ${col + 1} is headed "${text(headerRow[col])}" (${date.toISOString().slice(0, 10)}), outside this workbook's month ${blockMonth}. ` +
+        `Its ${excluded.toFixed(3)} MT is left out of every total until the header is corrected in the workbook.`,
+    );
+  }
+
+  // One record per date + department + mode — the database's unique key. Two source rows that
+  // land on the same key (two labels folding to one department) used to reach insertMany as two
+  // records, and the unique index silently rejected the second. They are now summed, and said so.
+  const dailyByKey = new Map();
+  for (const record of daily) {
+    const key = `${record.date.toISOString()}|${record.department}|${record.mode}`;
+    const existing = dailyByKey.get(key);
+    if (!existing) {
+      dailyByKey.set(key, { ...record });
+      continue;
+    }
+    warnings.push(
+      `${sourceFile}: rows "${existing.sourceLabel}" and "${record.sourceLabel}" both count as ${record.department} (${record.mode}) on ${record.date.toISOString().slice(0, 10)} — their ${existing.qty} and ${record.qty} MT are added together.`,
+    );
+    existing.qty += record.qty;
+  }
+  daily.length = 0;
+  daily.push(...dailyByKey.values());
+
   // The window the report actually covers: days where at least one department carries a real
   // number. July's header runs to the 30th but its rows stop at the 16th, and treating those
   // empty trailing columns as zero-dispatch days would drag every average down.
@@ -317,11 +367,15 @@ function parseTowerBlock(rows, warnings, sourceFile) {
 // The month a workbook reports on, taken from the day columns themselves rather than the
 // filename (which is free-form) or the title line (which in several months still carries a
 // stale "Till 29.11.24" left over from an older copy of the template).
+function monthKey(date) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 function resolveMonth(coveredDates, dateColumns) {
   const dates = coveredDates.length > 0 ? coveredDates : dateColumns.map((d) => d.date);
   const counts = new Map();
   for (const date of dates) {
-    const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+    const key = monthKey(date);
     counts.set(key, (counts.get(key) || 0) + 1);
   }
   let best = null;

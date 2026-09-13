@@ -21,6 +21,7 @@ export function FilterBar({ activePreset, onPresetChange, range, businessUnit, o
           <button
             key={preset.label}
             onClick={() => onPresetChange(preset.label, preset.getRange())}
+            aria-pressed={activePreset === preset.label}
             className="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
             style={{
               background: activePreset === preset.label ? 'var(--series-1)' : 'transparent',
@@ -42,6 +43,7 @@ export function FilterBar({ activePreset, onPresetChange, range, businessUnit, o
           <button
             key={unit.value}
             onClick={() => onBusinessUnitChange(unit.value)}
+            aria-pressed={businessUnit === unit.value}
             className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
             style={{
               background: businessUnit === unit.value ? 'var(--series-2)' : 'transparent',

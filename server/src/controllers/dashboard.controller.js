@@ -2,25 +2,65 @@ import { ManpowerRecord } from '../models/ManpowerRecord.js';
 import { ProductionRecord } from '../models/ProductionRecord.js';
 import { DispatchRecord } from '../models/DispatchRecord.js';
 import { Target } from '../models/Target.js';
+import { SyncLog } from '../models/SyncLog.js';
 import { roundDeep } from '../utils/roundNumbers.js';
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// The plant works on India Standard Time. Sheet dates are stored as UTC midnight of the IST
+// calendar day they name, so "today" has to be that same IST day expressed the same way.
+// Computing it from the server's UTC clock showed the previous day's figures as "today" from
+// midnight to 05:30 every night.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+export class BadRequestError extends Error {
+  constructor(message) {
+    super(message);
+    this.status = 400;
+    this.expose = true;
+  }
+}
+
+function istToday() {
+  const ist = new Date(Date.now() + IST_OFFSET_MS);
+  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
+}
+
+// Dates arrive as calendar days, "YYYY-MM-DD". Anything else used to reach MongoDB as an
+// Invalid Date, which the driver silently turns into 1 Jan 1970 — a nonsense range answered
+// with confident-looking numbers.
+function parseDay(value, name) {
+  if (value === undefined || value === '') return null;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new BadRequestError(`${name} must be a date in YYYY-MM-DD form.`);
+  }
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new BadRequestError(`${name} is not a real calendar date.`);
+  }
+  return date;
+}
+
 function parseDateRange(query) {
-  const to = query.to ? new Date(query.to) : new Date();
-  to.setUTCHours(23, 59, 59, 999);
+  const toDay = parseDay(query.to, 'to') ?? istToday();
+  const fromDay = parseDay(query.from, 'from') ?? new Date(toDay.getTime() - 29 * MS_PER_DAY);
+  if (fromDay > toDay) throw new BadRequestError('from must not be after to.');
+  return { from: fromDay, to: new Date(toDay.getTime() + MS_PER_DAY - 1) };
+}
 
-  const from = query.from ? new Date(query.from) : new Date(to);
-  if (!query.from) from.setUTCDate(from.getUTCDate() - 29);
-  from.setUTCHours(0, 0, 0, 0);
-
-  return { from, to };
+function parseFilters(query) {
+  const { businessUnit, client } = query;
+  if (businessUnit !== undefined && businessUnit !== 'HSD' && businessUnit !== 'BU') {
+    throw new BadRequestError('businessUnit must be HSD or BU.');
+  }
+  if (client !== undefined && (typeof client !== 'string' || client.length === 0 || client.length > 50)) {
+    throw new BadRequestError('client must be a single client name.');
+  }
+  return { businessUnit, client };
 }
 
 function startEndOfToday() {
-  const start = new Date();
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setUTCHours(23, 59, 59, 999);
-  return { start, end };
+  const start = istToday();
+  return { start, end: new Date(start.getTime() + MS_PER_DAY - 1) };
 }
 
 // Day and night are full shifts worked by different people, so both count in full. The 12.30
@@ -186,8 +226,13 @@ async function getProductionSummary(from, to, client) {
   };
 }
 
-async function sumDispatchQty(start, end, client) {
-  const match = { date: { $gte: start, $lte: end }, ...(client ? { client } : {}) };
+// Bhilai's blocks sit inside the same "Daily Dispatch" tab and are tagged by the parser from
+// their own titles. Records synced before that tag existed have no businessUnit and were all
+// HSD-titled or unlabelled, so "not BU" is what HSD means.
+const unitMatch = (businessUnit) => (businessUnit === 'BU' ? { businessUnit: 'BU' } : { businessUnit: { $ne: 'BU' } });
+
+async function sumDispatchQty(start, end, client, businessUnit) {
+  const match = { date: { $gte: start, $lte: end }, ...unitMatch(businessUnit), ...(client ? { client } : {}) };
   const [row] = await DispatchRecord.aggregate([
     { $match: match },
     { $group: { _id: null, total: { $sum: '$qty' } } },
@@ -198,8 +243,8 @@ async function sumDispatchQty(start, end, client) {
 // "Today" is frequently 0 simply because the sheet hasn't been updated yet for the current
 // calendar day. The last day that actually has dispatch rows (skipping Sundays/off days
 // automatically, since those just won't have rows) is a more useful "as of" figure.
-async function getLastRecordedDispatch(client) {
-  const match = client ? { client } : {};
+async function getLastRecordedDispatch(client, businessUnit) {
+  const match = { ...unitMatch(businessUnit), ...(client ? { client } : {}) };
   const [latest] = await DispatchRecord.aggregate([
     { $match: match },
     { $group: { _id: '$date', total: { $sum: '$qty' } } },
@@ -212,8 +257,8 @@ async function getLastRecordedDispatch(client) {
 // Rows with no recognized client (e.g. sheet projects that couldn't be mapped to a
 // known client) are grouped under "Other" here rather than dropped, so the client-wise
 // daily breakdown still sums to the same total as the plain day-by-day trend.
-async function getDispatchTrendByClient(from, to, client) {
-  const match = { date: { $gte: from, $lte: to }, ...(client ? { client } : {}) };
+async function getDispatchTrendByClient(from, to, client, businessUnit) {
+  const match = { date: { $gte: from, $lte: to }, ...unitMatch(businessUnit), ...(client ? { client } : {}) };
   const rows = await DispatchRecord.aggregate([
     { $match: match },
     {
@@ -234,8 +279,8 @@ async function getDispatchTrendByClient(from, to, client) {
   return [...byDate.values()].sort((a, b) => a.date - b.date);
 }
 
-async function getDispatchSummary(from, to, client) {
-  const match = { date: { $gte: from, $lte: to }, ...(client ? { client } : {}) };
+async function getDispatchSummary(from, to, client, businessUnit) {
+  const match = { date: { $gte: from, $lte: to }, ...unitMatch(businessUnit), ...(client ? { client } : {}) };
 
   const [trend, trendByClient, byClient, lastRecordedDay, inRange] = await Promise.all([
     DispatchRecord.aggregate([
@@ -243,14 +288,14 @@ async function getDispatchSummary(from, to, client) {
       { $group: { _id: '$date', total: { $sum: '$qty' } } },
       { $sort: { _id: 1 } },
     ]),
-    getDispatchTrendByClient(from, to, client),
+    getDispatchTrendByClient(from, to, client, businessUnit),
     DispatchRecord.aggregate([
       { $match: { ...match, client: { $ne: null } } },
       { $group: { _id: '$client', total: { $sum: '$qty' } } },
       { $sort: { total: -1 } },
     ]),
-    getLastRecordedDispatch(client),
-    sumDispatchQty(from, to, client),
+    getLastRecordedDispatch(client, businessUnit),
+    sumDispatchQty(from, to, client, businessUnit),
   ]);
 
   return {
@@ -281,25 +326,18 @@ const UNAVAILABLE_PRODUCTION = {
   trendByClient: [],
 };
 
-const UNAVAILABLE_DISPATCH = {
-  available: false,
-  lastRecordedDay: null,
-  inRange: null,
-  trend: [],
-  trendByClient: [],
-  byClient: [],
-};
-
-// Production (Adani/L&T MHI/RIL progress tabs) and dispatch (Daily Dispatch tab) are HSD-only
-// data sources today. Bhilai has no production-progress source yet and gets an explicit
-// "unavailable" shape rather than empty/zeroed data, so the UI can say so plainly.
+// Production (Adani/L&T MHI/RIL progress tabs) is an HSD-only source today. Bhilai has no
+// production-progress source connected yet and gets an explicit "unavailable" shape rather than
+// empty/zeroed data, so the UI can say so plainly. Dispatch is available for both: the Daily
+// Dispatch tab carries Bhilai's own blocks (AMNS, Utility Bridge), which used to be summed into
+// HSD's figures.
 export async function buildHsdSummaryData(from, to, businessUnit, client) {
   const isBhilai = businessUnit === 'BU';
 
   const [manpower, production, dispatch, targets] = await Promise.all([
     getManpowerSummary(from, to, businessUnit),
     isBhilai ? UNAVAILABLE_PRODUCTION : getProductionSummary(from, to, client),
-    isBhilai ? UNAVAILABLE_DISPATCH : getDispatchSummary(from, to, client),
+    getDispatchSummary(from, to, client, businessUnit),
     isBhilai ? [] : getTargetProgress(),
   ]);
 
@@ -307,22 +345,32 @@ export async function buildHsdSummaryData(from, to, businessUnit, client) {
     range: { from, to },
     manpower: roundDeep(manpower),
     production: isBhilai ? production : { available: true, ...roundDeep(production) },
-    dispatch: isBhilai ? dispatch : { available: true, ...roundDeep(dispatch) },
+    dispatch: { available: true, ...roundDeep(dispatch) },
     targets: roundDeep(targets),
   };
 }
 
-export async function getHsdSummary(req, res) {
-  const { from, to } = parseDateRange(req.query);
-  const { businessUnit, client } = req.query;
-  res.json(await buildHsdSummaryData(from, to, businessUnit, client));
+// When the figures were last refreshed from the sheets: the newest sync that wrote anything.
+// The dashboard freezes what it loaded for the session, so without this there was nothing on
+// screen to say how old the numbers were (RELIABILITY_REPORT UX-01).
+export async function latestDataAsOf() {
+  const log = await SyncLog.findOne({ status: { $in: ['success', 'partial'] } }).sort({ startedAt: -1 }).select('finishedAt').lean();
+  return log?.finishedAt ?? null;
 }
 
-export { parseDateRange };
+export async function getHsdSummary(req, res) {
+  const { from, to } = parseDateRange(req.query);
+  const { businessUnit, client } = parseFilters(req.query);
+  const [summary, dataAsOf] = await Promise.all([buildHsdSummaryData(from, to, businessUnit, client), latestDataAsOf()]);
+  res.json({ ...summary, dataAsOf, generatedAt: new Date() });
+}
+
+export { parseDateRange, parseFilters };
 
 export async function listManpowerRecords(req, res) {
   const { from, to } = parseDateRange(req.query);
-  const { businessUnit, category } = req.query;
+  const { businessUnit } = parseFilters(req.query);
+  const category = typeof req.query.category === 'string' ? req.query.category : undefined;
 
   const match = { date: { $gte: from, $lte: to } };
   if (businessUnit) match.businessUnit = businessUnit;

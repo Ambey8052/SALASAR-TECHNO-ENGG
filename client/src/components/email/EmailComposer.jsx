@@ -540,16 +540,30 @@ export function EmailComposer({ defaultSubject, defaultTo, defaultCc, bodyHtml }
                   <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
                     {format(new Date(s.sendAt), "d MMM yyyy, h:mm a")} · to {s.to.join(', ')}
                   </div>
+                  {/* A scheduled send that did not go out used to disappear from this list. */}
+                  {(s.status === 'failed' || s.status === 'unknown') && (
+                    <div className="mt-0.5 text-xs" style={{ color: 'var(--status-critical)' }}>
+                      {s.status === 'failed' ? 'Not sent' : 'Delivery unknown'}
+                      {s.error ? ` — ${s.error}` : ''}
+                    </div>
+                  )}
+                  {s.status === 'sending' && (
+                    <div className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Sending now…
+                    </div>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => cancelMutation.mutate(s.id)}
-                  disabled={cancelMutation.isPending}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
-                  style={{ color: 'var(--status-critical)' }}
-                >
-                  Cancel
-                </button>
+                {s.status !== 'sending' && (
+                  <button
+                    type="button"
+                    onClick={() => cancelMutation.mutate(s.id)}
+                    disabled={cancelMutation.isPending}
+                    className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+                    style={{ color: 'var(--status-critical)' }}
+                  >
+                    {s.status === 'pending' ? 'Cancel' : 'Dismiss'}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

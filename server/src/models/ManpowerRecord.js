@@ -13,6 +13,9 @@ const manpowerRecordSchema = new mongoose.Schema(
     count: { type: Number, required: true, min: 0 },
     rawLabel: { type: String },
     sourceTab: { type: String, default: 'Manpower' },
+    // The cell this figure was read from, so any headcount traces back to the sheet.
+    sourceRowIndex: { type: Number, default: null },
+    sourceCol: { type: Number, default: null },
     syncedAt: { type: Date, default: Date.now },
   },
   { timestamps: true },
